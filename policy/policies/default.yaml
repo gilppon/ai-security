@@ -1,0 +1,14 @@
+id: ASEC-CORE-DEFAULT-ALLOW-HEALTH
+title: Allow internal health checks
+category: core
+severity: info
+when:
+  event_type: system.health.check
+match:
+  source: internal
+risk:
+  score: 0
+actions:
+  - allow
+  - audit
+
