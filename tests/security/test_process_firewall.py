@@ -1,5 +1,9 @@
 from pathlib import Path
+import os
+import socket
 import sys
+
+import pytest
 
 from core.decisions.actions import DecisionAction
 from core.decisions.reasons import ReasonCode
@@ -101,6 +105,22 @@ def test_safe_executor_returns_only_output_metadata_and_blocks_replay(tmp_path: 
     assert ReasonCode.PROCESS_CAPABILITY_REPLAYED in replay.decision.reason_codes
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows Job Object integration")
+def test_safe_executor_runs_with_required_windows_os_isolation(tmp_path: Path) -> None:
+    script = tmp_path / "isolated.py"
+    script.write_text("print('isolated')", encoding="utf-8")
+    firewall = build_firewall(tmp_path)
+    authorization = authorize_script(firewall, tmp_path, script)
+
+    result = SafeExecutor(firewall, require_os_isolation=True).execute(
+        authorization.capability or ""
+    )
+
+    assert result.decision.decision is DecisionAction.ALLOW
+    assert ReasonCode.PROCESS_EXECUTED in result.decision.reason_codes
+    assert result.stdout_bytes > 0
+
+
 def test_safe_executor_terminates_output_overflow(tmp_path: Path) -> None:
     script = tmp_path / "loud.py"
     script.write_text("print('x' * 20000)", encoding="utf-8")
@@ -160,3 +180,112 @@ def test_required_os_isolation_fails_before_child_creation(monkeypatch) -> None:
     else:
         raise AssertionError("required isolation must fail closed")
     assert created is False
+
+
+def test_required_network_isolation_fails_before_child_creation(tmp_path: Path) -> None:
+    marker = tmp_path / "network-bypass.txt"
+    script = tmp_path / "network.py"
+    script.write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).write_text('ran')",
+        encoding="utf-8",
+    )
+    firewall = build_firewall(tmp_path)
+    authorization = authorize_script(firewall, tmp_path, script)
+
+    class Backend(ProcessIsolationBackend):
+        def launch(self, argv, *, working_directory, environment, limits):
+            assert limits.network_mode == "deny"
+            raise IsolationError("network isolation unavailable")
+
+        def apply(self, process: object, limits: IsolationLimits):
+            raise AssertionError("network isolation must be established before spawn")
+
+    result = SafeExecutor(
+        firewall,
+        isolation_backend=Backend(),
+        require_network_isolation=True,
+    ).execute(authorization.capability or "")
+
+    assert result.decision.decision is DecisionAction.DENY
+    assert ReasonCode.PROCESS_NETWORK_ISOLATION_UNAVAILABLE in result.decision.reason_codes
+    assert marker.exists() is False
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows AppContainer integration")
+def test_appcontainer_enforces_token_network_and_read_only_workspace(
+    tmp_path: Path, monkeypatch
+) -> None:
+    marker = tmp_path / "write-bypass.txt"
+    listener = socket.socket()
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    port = listener.getsockname()[1]
+    monkeypatch.setenv("AI_SECURITY_TEST_SECRET", "must-not-cross-boundary")
+    script = tmp_path / "appcontainer_probe.py"
+    script.write_text(
+        """import ctypes
+import socket
+import subprocess
+import sys
+from ctypes import wintypes
+from pathlib import Path
+
+advapi = ctypes.WinDLL('advapi32', use_last_error=True)
+kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+kernel.GetCurrentProcess.restype = wintypes.HANDLE
+advapi.OpenProcessToken.argtypes = [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)]
+advapi.GetTokenInformation.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+token = wintypes.HANDLE()
+if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 8, ctypes.byref(token)):
+    raise SystemExit(10)
+is_appcontainer = wintypes.DWORD()
+size = wintypes.DWORD()
+if not advapi.GetTokenInformation(token, 29, ctypes.byref(is_appcontainer), 4, ctypes.byref(size)):
+    raise SystemExit(11)
+if not is_appcontainer.value:
+    raise SystemExit(12)
+if __import__('os').environ.get('AI_SECURITY_TEST_SECRET'):
+    raise SystemExit(17)
+descendant_probe = '''import ctypes
+from ctypes import wintypes
+a=ctypes.WinDLL('advapi32',use_last_error=True)
+k=ctypes.WinDLL('kernel32',use_last_error=True)
+k.GetCurrentProcess.restype=wintypes.HANDLE
+a.OpenProcessToken.argtypes=[wintypes.HANDLE,wintypes.DWORD,ctypes.POINTER(wintypes.HANDLE)]
+h=wintypes.HANDLE(); v=wintypes.DWORD(); n=wintypes.DWORD()
+ok=a.OpenProcessToken(k.GetCurrentProcess(),8,ctypes.byref(h))
+ok=ok and a.GetTokenInformation(h,29,ctypes.byref(v),4,ctypes.byref(n))
+raise SystemExit(0 if ok and v.value else 18)
+'''
+if subprocess.run([sys.executable, '-c', descendant_probe], shell=False).returncode:
+    raise SystemExit(18)
+try:
+    Path(r'__MARKER__').write_text('sandbox escaped', encoding='utf-8')
+except OSError:
+    pass
+else:
+    raise SystemExit(13)
+try:
+    socket.create_connection(('127.0.0.1', __PORT__), timeout=0.25)
+except OSError:
+    pass
+else:
+    raise SystemExit(14)
+""".replace("__MARKER__", str(marker)).replace("__PORT__", str(port)),
+        encoding="utf-8",
+    )
+    firewall = build_firewall(tmp_path)
+    authorization = authorize_script(firewall, tmp_path, script)
+
+    try:
+        result = SafeExecutor(
+            firewall,
+            require_os_isolation=True,
+            require_network_isolation=True,
+        ).execute(authorization.capability or "")
+    finally:
+        listener.close()
+
+    assert result.decision.decision is DecisionAction.ALLOW
+    assert result.exit_code == 0
+    assert marker.exists() is False

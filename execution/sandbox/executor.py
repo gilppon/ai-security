@@ -71,7 +71,11 @@ class SafeExecutor:
                     str(spec.working_directory),
                     spec.timeout_seconds,
                     spec.max_output_bytes,
-                    isolation_backend=self._isolation_backend if self._require_os_isolation else None,
+                    isolation_backend=(
+                        self._isolation_backend
+                        if self._require_os_isolation or self._require_network_isolation
+                        else None
+                    ),
                     isolation_limits=IsolationLimits(
                         cpu_time_seconds=min(spec.timeout_seconds, 300.0),
                         network_mode="deny" if self._require_network_isolation else "inherit",
@@ -128,7 +132,11 @@ class SafeExecutor:
         isolation_limits: IsolationLimits | None = None,
     ) -> tuple[int, bytes, bytes, int, int, bool, bool]:
         requested_limits = isolation_limits or IsolationLimits()
-        if isolation_backend is not None and requested_limits.require_os_enforcement:
+        requires_prelaunch_isolation = (
+            requested_limits.require_os_enforcement
+            or requested_limits.network_mode == "deny"
+        )
+        if isolation_backend is not None and requires_prelaunch_isolation:
             process, binding = isolation_backend.launch(
                 argv,
                 working_directory=working_directory,
@@ -147,7 +155,7 @@ class SafeExecutor:
             )
             binding = None
         try:
-            if isolation_backend is not None and not requested_limits.require_os_enforcement:
+            if isolation_backend is not None and not requires_prelaunch_isolation:
                 binding = isolation_backend.apply(process, requested_limits)
         except Exception:
             process.kill()
@@ -217,5 +225,7 @@ class SafeExecutor:
 
 
 def _minimal_environment() -> dict[str, str]:
-    allowed = ("LANG", "LC_ALL", "SYSTEMROOT", "WINDIR")
+    # LOCALAPPDATA is required by the Windows AppContainer profile engine.
+    # Authentication, cloud, and developer-tool variables remain excluded.
+    allowed = ("LANG", "LC_ALL", "LOCALAPPDATA", "SYSTEMROOT", "WINDIR")
     return {name: os.environ[name] for name in allowed if name in os.environ}

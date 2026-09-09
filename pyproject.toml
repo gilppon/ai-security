@@ -9,6 +9,7 @@ description = "Proprietary deterministic AI security control plane"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
+  "flatbuffers>=25.2,<26",
   "pydantic>=2.10,<3",
   "PyYAML>=6,<7",
   "uvicorn>=0.30,<1",

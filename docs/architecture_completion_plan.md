@@ -26,6 +26,10 @@ flowchart LR
 
 ## Phase 9 — Hardened Execution Isolation
 
+Status: **COMPLETE ON WINDOWS 11** (2026-09-10). Enforcement evidence is in
+`tests/unit/test_sandbox_limits.py` and
+`tests/security/test_process_firewall.py`; unsupported hosts fail closed.
+
 ### 범위
 
 - 프로세스 생성 전 OS isolation이 준비되는 backend 계약

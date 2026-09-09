@@ -106,7 +106,7 @@ The user approved H-001 through H-003. Only those findings were changed:
 
 | Finding | Remediation | Verification |
 |---|---|---|
-| H-001 | Required OS isolation now fails before `Popen`; the existing post-spawn backend path remains available only for non-required best-effort limits. | Regression test proves `Popen` and backend application are not reached for required isolation. |
+| H-001 | Required Windows OS isolation creates the child suspended, binds it to a Job Object and capability-free AppContainer, and resumes it only after successful binding. Unsupported required controls still fail before execution. | Host tests verify CPU, memory, network, restricted child/descendant token, read-only workspace, minimal environment, and end-to-end SafeExecutor enforcement. |
 | H-002 | Allowed network resources are normalized to the first verified public resolved address, preventing downstream hostname re-resolution through the authorization result. | Regression test expects `https://93.184.216.34:443`; private/mixed DNS tests remain passing. |
 | H-003 | Production startup now raises unless verified policy is explicitly required and configured. | Regression test covers `Settings(environment="production")`. |
 

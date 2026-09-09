@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import ctypes
 
 from pydantic import BaseModel, ConfigDict
 
@@ -23,5 +24,15 @@ def probe_host_isolation_capabilities() -> HostIsolationCapabilities:
     """Return conservative capabilities; do not infer missing controls."""
     if os.name != "nt":
         return HostIsolationCapabilities(cpu_memory_limits=False, network_isolation=False, restricted_token=False)
-    return HostIsolationCapabilities(cpu_memory_limits=True, network_isolation=False, restricted_token=False)
-
+    try:
+        process_model = ctypes.WinDLL("processmodel.dll", use_last_error=True)
+        appcontainer_available = bool(
+            getattr(process_model, "Experimental_CreateProcessInSandbox", None)
+        )
+    except (AttributeError, OSError):
+        appcontainer_available = False
+    return HostIsolationCapabilities(
+        cpu_memory_limits=True,
+        network_isolation=appcontainer_available,
+        restricted_token=appcontainer_available,
+    )
