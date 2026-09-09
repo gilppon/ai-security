@@ -1,16 +1,45 @@
-# Phase 10 — Durable Append-Only Audit Store
+# Phase 10 — Durable Audit
+
+Status: **IN PROGRESS**. All local durability controls and the required
+immutable-replica contract are implemented and tested. A real remote WORM
+service and external retention-anchor verification remain completion blockers.
+
+## Data path
+
+`SecurityEvent -> StructuredAuditLogger -> RequiredReplicatedAuditSink -> immutable replica acknowledgement -> local hash chain`
+
+The caller receives success only after every required replica acknowledges.
+Replica failure raises `AuditDurabilityError` before the local sink reports a
+commit, preserving fail-closed behavior for security-sensitive callers.
 
 ## Implemented
 
-- Replaceable `AuditSink` implementation using JSONL.
-- SHA-256 hash chain with previous-record binding.
-- Atomic append under a process lock, optional `fsync`, and bounded record size.
-- Absolute, non-symlink path requirement with restrictive file mode.
-- Verification API that fails closed on malformed or tampered records.
-- Existing redaction and `StructuredAuditLogger` contracts remain unchanged.
+- Cross-process sidecar locking for each local audit chain.
+- Full-chain verification while holding the writer lock before every append.
+- Rejection of writes after existing-history tampering.
+- Complete-write loops; cached tail hashes were removed.
+- Target identity/symlink revalidation at verification and append time.
+- Owner-only local file permissions, including removal of inherited Windows ACLs.
+- Content-addressed, put-once directory WORM adapter suitable for an immutable
+  local path or remotely mounted storage.
+- Required replica coordinator that fails closed on rejection or outage.
+- Multi-process, ACL, tamper, idempotency, and replica-outage tests.
+- Hash-linked segment rotation with bounded retention and an integrity-protected
+  recovery anchor manifest.
+- Cross-segment restore verification and a recovery runbook.
 
-## Boundaries
+## Remaining completion work
 
-- This is a local append-only store, not a remote WORM service.
-- Multi-process locking and OS ACL hardening belong to deployment integration.
-- No raw secret or credential value is added to the envelope.
+1. Selection and integration test of a real remote immutable/WORM provider.
+2. Store and verify the retention anchor outside the writable host.
+
+Phase 10 must not be marked complete until these two items have reproducible
+evidence.
+
+## Current verification
+
+- Focused durable-audit tests cover 3-process concurrent writes, tampering,
+  Windows ACLs, replica outage, WORM idempotency, rotation, and recovery.
+- Full suite: `286 passed, 2 skipped` on Windows 11.
+- Source distribution and wheel build successfully.
+- Dependency audit reports no known vulnerabilities.

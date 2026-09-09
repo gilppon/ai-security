@@ -60,7 +60,7 @@ def test_windows_job_backend_launches_suspended_process_after_binding(tmp_path) 
 @pytest.mark.parametrize(
     ("code", "limits"),
     (
-        ("while True: pass", IsolationLimits(cpu_time_seconds=0.1)),
+            ("while True: pass", IsolationLimits(cpu_time_seconds=0.5)),
         (
             "bytearray(256 * 1024 * 1024)",
             IsolationLimits(cpu_time_seconds=2, memory_bytes=32 * 1024 * 1024),

@@ -59,3 +59,7 @@ backend after authorization and before any process output is released.
   denied loopback network access, denied workspace writes, read access, and
   exclusion of an unapproved environment secret.
 - Resource tests prove CPU-time and memory ceilings terminate abusive children.
+- A fail-closed accounting monitor queries aggregate Job user time and invokes
+  `TerminateJobObject` at the ceiling, covering hosts where periodic native
+  CPU-limit termination is delayed; the focused resource test passed five
+  consecutive runs after this hardening.

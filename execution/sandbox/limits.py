@@ -13,6 +13,7 @@ import ctypes
 import io
 import os
 import subprocess
+import threading
 import uuid
 from typing import Literal, Protocol
 
@@ -115,6 +116,12 @@ if os.name == "nt":
     _KERNEL32.TerminateProcess.restype = wintypes.BOOL
     _KERNEL32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
     _KERNEL32.WaitForSingleObject.restype = wintypes.DWORD
+    _KERNEL32.QueryInformationJobObject.argtypes = [
+        wintypes.HANDLE, _DWORD, ctypes.c_void_p, _DWORD, ctypes.POINTER(_DWORD)
+    ]
+    _KERNEL32.QueryInformationJobObject.restype = wintypes.BOOL
+    _KERNEL32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    _KERNEL32.TerminateJobObject.restype = wintypes.BOOL
 
     class _StartupInfo(ctypes.Structure):
         _fields_ = [
@@ -232,6 +239,18 @@ if os.name == "nt":
             ("PeakJobMemoryUsed", _SIZE_T),
         ]
 
+    class _JobBasicAccountingInformation(ctypes.Structure):
+        _fields_ = [
+            ("TotalUserTime", ctypes.c_longlong),
+            ("TotalKernelTime", ctypes.c_longlong),
+            ("ThisPeriodTotalUserTime", ctypes.c_longlong),
+            ("ThisPeriodTotalKernelTime", ctypes.c_longlong),
+            ("TotalPageFaultCount", _DWORD),
+            ("TotalProcesses", _DWORD),
+            ("ActiveProcesses", _DWORD),
+            ("TotalTerminatedProcesses", _DWORD),
+        ]
+
     class _ThreadEntry32(ctypes.Structure):
         _fields_ = [
             ("dwSize", wintypes.DWORD),
@@ -283,11 +302,51 @@ if os.name == "nt":
             _KERNEL32.CloseHandle(snapshot)
 
     class _WindowsJobBinding:
-        def __init__(self, handle: int, process: _WindowsSandboxProcess | None = None) -> None:
+        def __init__(
+            self,
+            handle: int,
+            process: _WindowsSandboxProcess | None = None,
+            *,
+            cpu_time_seconds: float | None = None,
+        ) -> None:
             self._handle = handle
             self._process = process
+            self._monitor_stop = threading.Event()
+            self._monitor = None
+            if cpu_time_seconds is not None:
+                cpu_ticks = int(cpu_time_seconds * 10_000_000)
+                self._monitor = threading.Thread(
+                    target=self._enforce_cpu_limit,
+                    args=(cpu_ticks,),
+                    daemon=True,
+                )
+                self._monitor.start()
+
+        def _enforce_cpu_limit(self, cpu_ticks: int) -> None:
+            while not self._monitor_stop.wait(0.01):
+                accounting = _JobBasicAccountingInformation()
+                returned = _DWORD()
+                ok = _KERNEL32.QueryInformationJobObject(
+                    self._handle,
+                    1,
+                    ctypes.byref(accounting),
+                    ctypes.sizeof(accounting),
+                    ctypes.byref(returned),
+                )
+                if not ok:
+                    _KERNEL32.TerminateJobObject(self._handle, 1816)
+                    return
+                if accounting.TotalUserTime >= cpu_ticks:
+                    _KERNEL32.TerminateJobObject(self._handle, 1816)
+                    return
+                if accounting.ActiveProcesses == 0 and accounting.TotalProcesses > 0:
+                    return
 
         def close(self) -> None:
+            self._monitor_stop.set()
+            if self._monitor is not None:
+                self._monitor.join(timeout=1)
+                self._monitor = None
             if self._handle:
                 _KERNEL32.CloseHandle(self._handle)
                 self._handle = 0
@@ -346,7 +405,9 @@ if os.name == "nt":
                         raise IsolationError("failed to resume AppContainer process")
                     _KERNEL32.CloseHandle(process._thread_handle)
                     del process._thread_handle
-                    return process, _WindowsJobBinding(job, process)
+                    return process, _WindowsJobBinding(
+                        job, process, cpu_time_seconds=limits.cpu_time_seconds
+                    )
                 process = subprocess.Popen(
                     list(argv),
                     shell=False,
@@ -361,7 +422,9 @@ if os.name == "nt":
                 if not handle or not _KERNEL32.AssignProcessToJobObject(job, handle):
                     raise IsolationError("failed to assign suspended process to Job Object")
                 _resume_suspended_process(process)
-                return process, _WindowsJobBinding(job)
+                return process, _WindowsJobBinding(
+                    job, cpu_time_seconds=limits.cpu_time_seconds
+                )
             except Exception:
                 if process is not None:
                     process.kill()
@@ -437,7 +500,7 @@ if os.name == "nt":
             if not ok or not _KERNEL32.AssignProcessToJobObject(job, pid):
                 _KERNEL32.CloseHandle(job)
                 raise IsolationError("failed to configure Windows Job Object")
-            return _WindowsJobBinding(job)
+            return _WindowsJobBinding(job, cpu_time_seconds=limits.cpu_time_seconds)
 else:
     class WindowsJobObjectBackend(ProcessIsolationBackend):
         def launch(
