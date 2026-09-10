@@ -16,7 +16,7 @@ concurrency:
 jobs:
   phase-regression:
     name: ${{ matrix.phase }} security regression (${{ matrix.label }})
-    runs-on: windows-latest
+    runs-on: ${{ matrix.runner || 'windows-latest' }}
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -52,6 +52,7 @@ jobs:
             tests: tests/unit/test_sandbox_capabilities.py tests/unit/test_sandbox_limits.py tests/unit/test_sandbox_readiness.py tests/security/test_sandbox_isolation.py
           - phase: phase-9
             label: appcontainer-native
+            runner: windows-11-arm
             tests: tests/security/test_process_firewall.py::test_appcontainer_enforces_token_network_and_read_only_workspace
           - phase: phase-10
             label: append-basic

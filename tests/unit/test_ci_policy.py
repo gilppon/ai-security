@@ -13,6 +13,8 @@ def test_security_workflow_uses_pinned_actions_and_safe_events() -> None:
     assert action_refs
     assert all(re.fullmatch(r"[0-9a-f]{40}", reference) for reference in action_refs)
     assert "permissions:\n  contents: read" in workflow
+    assert "runner: windows-11-arm" in workflow
+    assert "runs-on: ${{ matrix.runner || 'windows-latest' }}" in workflow
 
 
 def test_every_test_file_is_assigned_to_a_phase_regression_job() -> None:

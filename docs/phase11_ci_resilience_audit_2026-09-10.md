@@ -128,5 +128,14 @@ which is consistent with a virtual runtime whose base path is inaccessible from
 the AppContainer. Remote confirmation is still required before changing the
 runtime layout.
 
+Run `34473584600` confirmed the remote failure occurs earlier than the local
+virtual-runtime failure: `decision=DENY`, `reason_codes=UNKNOWN_SECURITY_STATE`,
+`exit_code=none`, and `marker_exists=False`. GitHub currently maps
+`windows-latest` to Windows Server 2025, while the experimental Win32 App
+Isolation API used by the backend targets Windows 11. The approved remediation
+moves only `appcontainer-native` to the generally available
+`windows-11-arm` hosted runner; no test is skipped and no sandbox permission is
+widened.
+
 Phase 11 remains incomplete, and Phase 12 must not start, until an updated
 GitHub workflow passes every job.
