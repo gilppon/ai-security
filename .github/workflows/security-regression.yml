@@ -116,6 +116,14 @@ jobs:
             & $python -m pytest -q ${{ matrix.pytest_args }} $testTarget *> $capturedLog
             if ($LASTEXITCODE -ne 0) {
               $failedTargets += $testTarget
+              $capturedText = Get-Content -LiteralPath $capturedLog -Raw
+              $safePattern = (
+                "AISCP_SAFE_DIAGNOSTIC: decision=[A-Z_]+;" +
+                "reason_codes=[A-Z0-9_,]+;exit_code=(none|-?[0-9]+);" +
+                "marker_exists=(True|False)"
+              )
+              [regex]::Matches($capturedText, $safePattern) |
+                ForEach-Object { Write-Output $_.Value }
             }
           }
           if ($failedTargets.Count -ne 0) {

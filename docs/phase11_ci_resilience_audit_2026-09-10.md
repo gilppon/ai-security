@@ -114,5 +114,19 @@ labels. This closes the public failure-localization gap in P11-M-003 without
 publishing captured pytest output: Phase 9 resolves to `appcontainer-native`,
 and Phase 10 resolves to `append-only`. The two High findings remain open.
 
+Run `34472967163` narrowed P11-H-006 to
+`test_append_only_sink_rejects_relative_and_symlink_paths`; every other
+append-only group passed. Inspection confirmed that the constructor resolved
+the candidate before checking `is_symlink()`, thereby discarding the link
+identity. The approved fix checks the original candidate first and adds a
+deterministic regression test for hosts where real symlink creation is denied.
+
+The allowlisted P11-H-005 diagnostic reproduced locally as
+`decision=LOG`, `reason_codes=PROCESS_NONZERO_EXIT`, `exit_code=107`, and
+`marker_exists=False`. Python documents 107 as an invalid `pyvenv.cfg` result,
+which is consistent with a virtual runtime whose base path is inaccessible from
+the AppContainer. Remote confirmation is still required before changing the
+runtime layout.
+
 Phase 11 remains incomplete, and Phase 12 must not start, until an updated
 GitHub workflow passes every job.

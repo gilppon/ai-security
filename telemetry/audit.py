@@ -194,9 +194,9 @@ class AppendOnlyFileAuditSink:
         candidate = Path(path)
         if not candidate.is_absolute():
             raise ValueError("audit path must be absolute")
-        resolved = candidate.resolve(strict=False)
-        if resolved.exists() and resolved.is_symlink():
+        if candidate.is_symlink():
             raise ValueError("audit path must not be a symlink")
+        resolved = candidate.resolve(strict=False)
         if not resolved.parent.is_dir():
             raise ValueError("audit parent directory must already exist")
         if max_record_bytes < 1024 or max_record_bytes > 16 * 1024 * 1024:

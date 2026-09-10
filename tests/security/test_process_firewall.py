@@ -287,6 +287,14 @@ else:
     finally:
         listener.close()
 
-    assert result.decision.decision is DecisionAction.ALLOW
-    assert result.exit_code == 0
-    assert marker.exists() is False
+    diagnostic = (
+        "AISCP_SAFE_DIAGNOSTIC: "
+        f"decision={result.decision.decision.value};"
+        "reason_codes="
+        f"{','.join(code.value for code in result.decision.reason_codes)};"
+        f"exit_code={result.exit_code if result.exit_code is not None else 'none'};"
+        f"marker_exists={marker.exists()}"
+    )
+    assert result.decision.decision is DecisionAction.ALLOW, diagnostic
+    assert result.exit_code == 0, diagnostic
+    assert marker.exists() is False, diagnostic

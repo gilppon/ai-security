@@ -45,6 +45,20 @@ def test_append_only_sink_rejects_relative_and_symlink_paths(tmp_path) -> None:
         AppendOnlyFileAuditSink(link)
 
 
+def test_append_only_sink_checks_symlink_before_resolution(tmp_path, monkeypatch) -> None:
+    candidate = tmp_path / "audit-link.jsonl"
+    original_is_symlink = type(candidate).is_symlink
+
+    monkeypatch.setattr(
+        type(candidate),
+        "is_symlink",
+        lambda path: path == candidate or original_is_symlink(path),
+    )
+
+    with pytest.raises(ValueError, match="must not be a symlink"):
+        AppendOnlyFileAuditSink(candidate)
+
+
 def test_append_only_sink_detects_tampering(tmp_path) -> None:
     path = tmp_path / "audit.jsonl"
     sink = AppendOnlyFileAuditSink(path)
