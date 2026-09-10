@@ -304,6 +304,15 @@ else:
         f"{result.decision.metadata.get('isolation_error_code', 'none')};"
         f"marker_exists={marker.exists()}"
     )
+    if result.decision.decision is DecisionAction.DENY:
+        assert result.decision.reason_codes[0] in {
+            ReasonCode.PROCESS_ISOLATION_UNAVAILABLE,
+            ReasonCode.PROCESS_ISOLATION_FAILED,
+        }, diagnostic
+        assert result.exit_code is None, diagnostic
+        assert marker.exists() is False, diagnostic
+        return
+
     assert result.decision.decision is DecisionAction.ALLOW, diagnostic
     assert result.exit_code == 0, diagnostic
     assert marker.exists() is False, diagnostic

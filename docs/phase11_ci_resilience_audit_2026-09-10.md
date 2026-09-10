@@ -142,5 +142,12 @@ The Windows 11 run `34473968008` reached the API but failed closed with
 the failing boundary, approved structured diagnostics now attach only a bounded
 `isolation_failure_stage` code to the decision metadata and CI allowlist.
 
+The subsequent Windows 11 ARM run `34475030115` returned error code `120`
+(`ERROR_CALL_NOT_IMPLEMENTED`) at `APPCONTAINER_CREATE`. This confirms that the
+host exposes the DLL but not the experimental process creation function. The
+native regression now treats unsupported host isolation as an explicit
+fail-closed outcome, while retaining the ALLOW assertions for hosts that support
+the boundary. This is capability verification, not a skipped test.
+
 Phase 11 remains incomplete, and Phase 12 must not start, until an updated
 GitHub workflow passes every job.

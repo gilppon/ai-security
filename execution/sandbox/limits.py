@@ -456,8 +456,23 @@ if os.name == "nt":
         def _launch_appcontainer(
             argv: tuple[str, ...], *, working_directory: str, environment: dict[str, str]
         ) -> _WindowsSandboxProcess:
-            library = ctypes.WinDLL("processmodel.dll", use_last_error=True)
-            create = library.Experimental_CreateProcessInSandbox
+            try:
+                library = ctypes.WinDLL("processmodel.dll", use_last_error=True)
+            except OSError as exc:
+                error_code = getattr(exc, "winerror", None) or ctypes.get_last_error()
+                raise IsolationError(
+                    "AppContainer API unavailable",
+                    stage="APPCONTAINER_LOAD",
+                    os_error_code=error_code or None,
+                ) from exc
+            try:
+                create = library.Experimental_CreateProcessInSandbox
+            except AttributeError as exc:
+                raise IsolationError(
+                    "AppContainer API unavailable",
+                    stage="APPCONTAINER_API",
+                    os_error_code=127,
+                ) from exc
             create.argtypes = [
                 wintypes.LPCWSTR, wintypes.LPWSTR, ctypes.c_void_p, ctypes.c_void_p,
                 wintypes.BOOL, wintypes.DWORD, ctypes.c_void_p, wintypes.LPCWSTR,
