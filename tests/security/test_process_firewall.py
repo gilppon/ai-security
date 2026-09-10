@@ -195,7 +195,9 @@ def test_required_network_isolation_fails_before_child_creation(tmp_path: Path) 
     class Backend(ProcessIsolationBackend):
         def launch(self, argv, *, working_directory, environment, limits):
             assert limits.network_mode == "deny"
-            raise IsolationError("network isolation unavailable")
+            raise IsolationError(
+                "network isolation unavailable", stage="NETWORK_BOUNDARY"
+            )
 
         def apply(self, process: object, limits: IsolationLimits):
             raise AssertionError("network isolation must be established before spawn")
@@ -208,6 +210,9 @@ def test_required_network_isolation_fails_before_child_creation(tmp_path: Path) 
 
     assert result.decision.decision is DecisionAction.DENY
     assert ReasonCode.PROCESS_NETWORK_ISOLATION_UNAVAILABLE in result.decision.reason_codes
+    assert result.decision.metadata == {
+        "isolation_failure_stage": "NETWORK_BOUNDARY"
+    }
     assert marker.exists() is False
 
 
@@ -293,6 +298,8 @@ else:
         "reason_codes="
         f"{','.join(code.value for code in result.decision.reason_codes)};"
         f"exit_code={result.exit_code if result.exit_code is not None else 'none'};"
+        "failure_stage="
+        f"{result.decision.metadata.get('isolation_failure_stage', 'none')};"
         f"marker_exists={marker.exists()}"
     )
     assert result.decision.decision is DecisionAction.ALLOW, diagnostic

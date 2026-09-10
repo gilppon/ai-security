@@ -36,6 +36,10 @@ class IsolationLimits(BaseModel):
 class IsolationError(RuntimeError):
     """Raised when the host cannot enforce a requested isolation control."""
 
+    def __init__(self, message: str, *, stage: str = "UNSPECIFIED") -> None:
+        super().__init__(message)
+        self.stage = stage
+
 
 class IsolationBinding(Protocol):
     def close(self) -> None: ...
@@ -372,7 +376,7 @@ if os.name == "nt":
         ) -> tuple[object, IsolationBinding]:
             job = _KERNEL32.CreateJobObjectW(None, None)
             if not job:
-                raise IsolationError("CreateJobObjectW failed")
+                raise IsolationError("CreateJobObjectW failed", stage="JOB_CREATE")
             info = _JobExtendedLimitInformation()
             # PROCESS_TIME + JOB_TIME + PROCESS_MEMORY + KILL_ON_JOB_CLOSE.
             # The job-wide ceiling also covers descendant CPU consumption.
@@ -389,7 +393,9 @@ if os.name == "nt":
             )
             if not configured:
                 _KERNEL32.CloseHandle(job)
-                raise IsolationError("failed to configure Windows Job Object")
+                raise IsolationError(
+                    "failed to configure Windows Job Object", stage="JOB_CONFIGURE"
+                )
             process = None
             try:
                 if limits.network_mode == "deny":
@@ -400,9 +406,13 @@ if os.name == "nt":
                     )
                     handle = process._handle
                     if not _KERNEL32.AssignProcessToJobObject(job, handle):
-                        raise IsolationError("failed to bind AppContainer to Job Object")
+                        raise IsolationError(
+                            "failed to bind AppContainer to Job Object", stage="JOB_BIND"
+                        )
                     if _KERNEL32.ResumeThread(process._thread_handle) == 0xFFFFFFFF:
-                        raise IsolationError("failed to resume AppContainer process")
+                        raise IsolationError(
+                            "failed to resume AppContainer process", stage="THREAD_RESUME"
+                        )
                     _KERNEL32.CloseHandle(process._thread_handle)
                     del process._thread_handle
                     return process, _WindowsJobBinding(
@@ -470,7 +480,8 @@ if os.name == "nt":
             )
             if not created:
                 raise IsolationError(
-                    f"AppContainer launch failed with Windows error {ctypes.get_last_error()}"
+                    f"AppContainer launch failed with Windows error {ctypes.get_last_error()}",
+                    stage="APPCONTAINER_CREATE",
                 )
             process = _WindowsSandboxProcess(info.hProcess, info.dwProcessId, identity)
             process._thread_handle = info.hThread

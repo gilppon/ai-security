@@ -121,6 +121,7 @@ jobs:
               $safePattern = (
                 "AISCP_SAFE_DIAGNOSTIC: decision=[A-Z_]+;" +
                 "reason_codes=[A-Z0-9_,]+;exit_code=(none|-?[0-9]+);" +
+                "failure_stage=(none|[A-Z_]+);" +
                 "marker_exists=(True|False)"
               )
               [regex]::Matches($capturedText, $safePattern) |

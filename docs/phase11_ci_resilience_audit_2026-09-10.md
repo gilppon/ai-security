@@ -137,5 +137,10 @@ moves only `appcontainer-native` to the generally available
 `windows-11-arm` hosted runner; no test is skipped and no sandbox permission is
 widened.
 
+The Windows 11 run `34473968008` reached the API but failed closed with
+`PROCESS_ISOLATION_FAILED`. To avoid exposing raw Windows errors while locating
+the failing boundary, approved structured diagnostics now attach only a bounded
+`isolation_failure_stage` code to the decision metadata and CI allowlist.
+
 Phase 11 remains incomplete, and Phase 12 must not start, until an updated
 GitHub workflow passes every job.

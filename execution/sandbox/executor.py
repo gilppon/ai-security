@@ -102,7 +102,12 @@ class SafeExecutor:
                 if "unavailable" in str(exc).lower()
                 else ReasonCode.PROCESS_ISOLATION_FAILED
             )
-            decision = self._decision(DecisionAction.DENY, reason, 100)
+            decision = self._decision(
+                DecisionAction.DENY,
+                reason,
+                100,
+                metadata={"isolation_failure_stage": exc.stage},
+            )
         except Exception:
             exit_code = None
             stdout = stderr = b""
@@ -220,8 +225,19 @@ class SafeExecutor:
                 binding.close()
 
     @staticmethod
-    def _decision(action: DecisionAction, reason: ReasonCode, risk_score: int) -> SecurityDecision:
-        return SecurityDecision(decision=action, risk_score=risk_score, reason_codes=(reason,))
+    def _decision(
+        action: DecisionAction,
+        reason: ReasonCode,
+        risk_score: int,
+        *,
+        metadata: dict[str, str] | None = None,
+    ) -> SecurityDecision:
+        return SecurityDecision(
+            decision=action,
+            risk_score=risk_score,
+            reason_codes=(reason,),
+            metadata=metadata or {},
+        )
 
 
 def _minimal_environment() -> dict[str, str]:
