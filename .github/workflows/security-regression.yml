@@ -69,14 +69,27 @@ jobs:
       - name: Run sanitized phase regression
         shell: pwsh
         run: |
-          $capturedLog = Join-Path $env:RUNNER_TEMP "${{ matrix.phase }}.log"
           $python = "python"
           if ("${{ matrix.phase }}" -eq "phase-9") {
             $python = "C:\AISCP-Python312\python.exe"
           }
-          & $python -m pytest -q ${{ matrix.pytest_args }} ${{ matrix.tests }} *> $capturedLog
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "${{ matrix.phase }} regression failed; reproduce locally for protected diagnostics"
+          $failedTargets = @()
+          $testTargets = "${{ matrix.tests }}".Split(
+            " ",
+            [System.StringSplitOptions]::RemoveEmptyEntries
+          )
+          for ($targetIndex = 0; $targetIndex -lt $testTargets.Count; $targetIndex++) {
+            $testTarget = $testTargets[$targetIndex]
+            $capturedLog = Join-Path $env:RUNNER_TEMP "${{ matrix.phase }}-$targetIndex.log"
+            & $python -m pytest -q ${{ matrix.pytest_args }} $testTarget *> $capturedLog
+            if ($LASTEXITCODE -ne 0) {
+              $failedTargets += $testTarget
+            }
+          }
+          if ($failedTargets.Count -ne 0) {
+            Write-Error (
+              "${{ matrix.phase }} failed targets: " + ($failedTargets -join ", ")
+            )
             exit 1
           }
           Write-Output "${{ matrix.phase }} regression passed"
