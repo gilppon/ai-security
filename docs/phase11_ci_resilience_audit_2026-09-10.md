@@ -1,7 +1,7 @@
 # Phase 11 CI Resilience and Evidence — Pre-fix Audit
 
 Date: 2026-09-10  
-Status: **REMEDIATED LOCALLY; GITHUB CI EVIDENCE PENDING**
+Status: **GITHUB CI BLOCKED; ADDITIONAL APPROVAL REQUIRED**
 
 ## Official architecture scope
 
@@ -82,10 +82,6 @@ were not part of the pre-fix audit approval:
 | P11-H-004 | High | Phase-isolated Python 3.12 imports expose a circular dependency between `input_security.jailbreak.detector`, the eager `input_security.prompt` package initializer, and `input_security.prompt.firewall`. | GitHub Phase 2 failed; the exact Python 3.12 command reproduced `ImportError: cannot import name 'JailbreakDetector' from partially initialized module`. |
 | P11-H-005 | High | The AppContainer integration cannot start the isolated Python 3.12 probe in the GitHub-equivalent runtime layout. | GitHub Phase 6 failed; two local Python 3.12 reproductions returned process exit `107` instead of the expected sandboxed success. Together with CI this reached the three-failure circuit breaker. |
 
-The Phase 10 job failed once on GitHub but passed twice under the same local
-Python 3.12 test command. It remains an unconfirmed transient or host-specific
-failure and is not yet assigned a remediation finding.
-
 Both findings received explicit additional approval on 2026-09-10.
 
 - P11-H-004 is locally closed by deferring the `JailbreakDetector` import until
@@ -95,4 +91,23 @@ Both findings received explicit additional approval on 2026-09-10.
   test is assigned to Phase 9 and runs from a short root-path Python 3.12 copy;
   the complete native-isolation group passed 12/12 in that layout.
 
-Phase 11 remains incomplete until the updated GitHub workflow passes.
+## Repeated GitHub-hosted failures — approval required
+
+Runs `34470177181` and `34470626831` both failed the updated Phase 9 and Phase
+10 jobs while every other phase and the complete fault matrix passed. Together
+with run `34463714748`, the underlying AppContainer failure and the Phase 10
+failure have each reached the three-failure circuit breaker.
+
+| ID | Severity | Finding | Reproduction / evidence |
+|---|---|---|---|
+| P11-H-005 | High | The approved short-path native-runtime remediation passes locally but does not close the AppContainer regression on `windows-latest`. | The original Phase 6 failure plus Phase 9 failures in runs `34470177181` and `34470626831`; the native runtime preparation step itself succeeds. |
+| P11-H-006 | High | Phase 10 has a repeatable GitHub-hosted Windows regression that is not reproduced by the same Python 3.12 test group locally. | Phase 10 failed in runs `34463714748`, `34470177181`, and `34470626831`; the exact local group passed twice. |
+| P11-M-003 | Medium | Sanitized per-target diagnostics are retained in the runner log but are not exposed by the unauthenticated GitHub check API, which reports only exit code 1. | Run `34470626831` check annotations contain `Process completed with exit code 1` without the safe failing-target message. |
+
+No code remediation for P11-H-006 or P11-M-003 has been applied. The next-best
+diagnostic is to write only the allowlisted failing test paths to the GitHub job
+summary, then use that evidence to reproduce and prepare a separately reviewed
+fix. P11-H-005 remains open despite its approved first remediation.
+
+Phase 11 remains incomplete, and Phase 12 must not start, until an updated
+GitHub workflow passes every job.
