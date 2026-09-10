@@ -8,7 +8,6 @@ from core.events.factory import SecurityEventFactory
 from core.events.types import TrustLevel
 from core.risk.engine import RiskEngine
 from detection.models import DetectionFinding, RuleAction, Severity
-from input_security.jailbreak.detector import JailbreakDetector
 from input_security.prompt.contracts import (
     PromptNormalizerContract,
     PromptObfuscationDetectorContract,
@@ -47,7 +46,13 @@ class PromptFirewall:
         self._rule_detector = rule_detector or PromptRuleDetector()
         self._encoding_detector = encoding_detector or EncodingDetector()
         self._obfuscation_detector = obfuscation_detector or ObfuscationDetector()
-        self._jailbreak_detector = jailbreak_detector or JailbreakDetector()
+        if jailbreak_detector is None:
+            # Keep the package import graph acyclic when detectors are imported
+            # independently in isolated phase jobs.
+            from input_security.jailbreak.detector import JailbreakDetector
+
+            jailbreak_detector = JailbreakDetector()
+        self._jailbreak_detector = jailbreak_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()

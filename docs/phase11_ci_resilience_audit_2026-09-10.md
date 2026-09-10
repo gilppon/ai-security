@@ -66,6 +66,33 @@ All six findings were approved on 2026-09-10.
   decision metadata and raw values; explicit leak tests pass.
 - P11-H-003 and P11-M-001: scenario, p95, and max thresholds control the CLI
   exit code, while sanitized per-run evidence provides 30-day CI history.
-- Local verification: `304 passed, 3 skipped`; build and dependency audit pass.
+- Local verification after additional remediation: `305 passed, 3 skipped`;
+  build and dependency audit pass.
 
 Final closure remains gated on a successful GitHub-hosted workflow run.
+
+## Post-deployment CI findings — approval required
+
+The first GitHub-hosted run (`34463714748`) passed the complete fault matrix and
+Phase 0–1, 3–5, 7–9, and 11 jobs. It exposed two additional High findings that
+were not part of the pre-fix audit approval:
+
+| ID | Severity | Finding | Reproduction / evidence |
+|---|---|---|---|
+| P11-H-004 | High | Phase-isolated Python 3.12 imports expose a circular dependency between `input_security.jailbreak.detector`, the eager `input_security.prompt` package initializer, and `input_security.prompt.firewall`. | GitHub Phase 2 failed; the exact Python 3.12 command reproduced `ImportError: cannot import name 'JailbreakDetector' from partially initialized module`. |
+| P11-H-005 | High | The AppContainer integration cannot start the isolated Python 3.12 probe in the GitHub-equivalent runtime layout. | GitHub Phase 6 failed; two local Python 3.12 reproductions returned process exit `107` instead of the expected sandboxed success. Together with CI this reached the three-failure circuit breaker. |
+
+The Phase 10 job failed once on GitHub but passed twice under the same local
+Python 3.12 test command. It remains an unconfirmed transient or host-specific
+failure and is not yet assigned a remediation finding.
+
+Both findings received explicit additional approval on 2026-09-10.
+
+- P11-H-004 is locally closed by deferring the `JailbreakDetector` import until
+  `PromptFirewall` construction. Fresh-process import tests pass on Python 3.12
+  and 3.14.
+- P11-H-005 is locally closed without widening sandbox permissions. The native
+  test is assigned to Phase 9 and runs from a short root-path Python 3.12 copy;
+  the complete native-isolation group passed 12/12 in that layout.
+
+Phase 11 remains incomplete until the updated GitHub workflow passes.

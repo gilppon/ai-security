@@ -212,6 +212,7 @@ def test_required_network_isolation_fails_before_child_creation(tmp_path: Path) 
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows AppContainer integration")
+@pytest.mark.native_isolation
 def test_appcontainer_enforces_token_network_and_read_only_workspace(
     tmp_path: Path, monkeypatch
 ) -> None:

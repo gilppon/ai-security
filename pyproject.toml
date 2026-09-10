@@ -22,6 +22,9 @@ test = ["httpx>=0.27,<1", "pytest>=8,<10"]
 [tool.pytest.ini_options]
 addopts = "-q"
 testpaths = ["tests"]
+markers = [
+  "native_isolation: requires a host-native OS isolation boundary",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

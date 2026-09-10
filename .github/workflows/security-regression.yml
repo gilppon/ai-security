@@ -25,7 +25,7 @@ jobs:
           - phase: phase-0-1
             tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/unit/test_policy_startup.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_policy_startup_gate.py tests/integration/test_security_pipeline.py
           - phase: phase-2
-            tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_normalizer.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
+            tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_import_order.py tests/unit/test_prompt_normalizer.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
           - phase: phase-3
             tests: tests/unit/test_content_security.py tests/security/test_content_firewall.py tests/integration/test_content_api.py
           - phase: phase-4
@@ -34,12 +34,13 @@ jobs:
             tests: tests/unit/test_secret_detector.py tests/security/test_output_guard.py tests/integration/test_output_api.py
           - phase: phase-6
             tests: tests/security/test_database_api_firewalls.py tests/security/test_filesystem_firewall.py tests/security/test_network_firewall.py tests/security/test_process_firewall.py
+            pytest_args: '-m "not native_isolation"'
           - phase: phase-7
             tests: tests/unit/test_runtime_anomaly.py tests/security/test_runtime_monitor.py tests/integration/test_runtime_api.py
           - phase: phase-8
             tests: tests/unit/test_redteam_models.py tests/unit/test_redteam_runner.py tests/security/test_redteam_security.py tests/integration/test_redteam_regression.py
           - phase: phase-9
-            tests: tests/unit/test_sandbox_capabilities.py tests/unit/test_sandbox_limits.py tests/unit/test_sandbox_readiness.py tests/security/test_sandbox_isolation.py
+            tests: tests/unit/test_sandbox_capabilities.py tests/unit/test_sandbox_limits.py tests/unit/test_sandbox_readiness.py tests/security/test_sandbox_isolation.py tests/security/test_process_firewall.py::test_appcontainer_enforces_token_network_and_read_only_workspace
           - phase: phase-10
             tests: tests/unit/test_append_only_audit.py tests/unit/test_r2_audit_replica.py tests/integration/test_r2_audit_replica_live.py
           - phase: phase-11
@@ -51,12 +52,29 @@ jobs:
           python-version: "3.12"
           cache: pip
       - name: Install project
+        if: matrix.phase != 'phase-9'
         run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Prepare native-isolation Python runtime
+        if: matrix.phase == 'phase-9'
+        shell: pwsh
+        run: |
+          $sourceRuntime = python -c "import sys; print(sys.base_prefix)"
+          $nativeRuntime = "C:\AISCP-Python312"
+          if (Test-Path -LiteralPath $nativeRuntime) {
+            throw "Dedicated native-isolation runtime path already exists"
+          }
+          New-Item -ItemType Directory -Path $nativeRuntime | Out-Null
+          Copy-Item -Path (Join-Path $sourceRuntime "*") -Destination $nativeRuntime -Recurse
+          & "$nativeRuntime\python.exe" -m pip install --break-system-packages --disable-pip-version-check -e ".[test]"
       - name: Run sanitized phase regression
         shell: pwsh
         run: |
           $capturedLog = Join-Path $env:RUNNER_TEMP "${{ matrix.phase }}.log"
-          python -m pytest -q ${{ matrix.tests }} *> $capturedLog
+          $python = "python"
+          if ("${{ matrix.phase }}" -eq "phase-9") {
+            $python = "C:\AISCP-Python312\python.exe"
+          }
+          & $python -m pytest -q ${{ matrix.pytest_args }} ${{ matrix.tests }} *> $capturedLog
           if ($LASTEXITCODE -ne 0) {
             Write-Error "${{ matrix.phase }} regression failed; reproduce locally for protected diagnostics"
             exit 1
