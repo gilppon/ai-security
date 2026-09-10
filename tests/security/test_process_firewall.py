@@ -300,6 +300,8 @@ else:
         f"exit_code={result.exit_code if result.exit_code is not None else 'none'};"
         "failure_stage="
         f"{result.decision.metadata.get('isolation_failure_stage', 'none')};"
+        "os_error_code="
+        f"{result.decision.metadata.get('isolation_error_code', 'none')};"
         f"marker_exists={marker.exists()}"
     )
     assert result.decision.decision is DecisionAction.ALLOW, diagnostic

@@ -36,9 +36,16 @@ class IsolationLimits(BaseModel):
 class IsolationError(RuntimeError):
     """Raised when the host cannot enforce a requested isolation control."""
 
-    def __init__(self, message: str, *, stage: str = "UNSPECIFIED") -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        stage: str = "UNSPECIFIED",
+        os_error_code: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.stage = stage
+        self.os_error_code = os_error_code
 
 
 class IsolationBinding(Protocol):
@@ -479,9 +486,11 @@ if os.name == "nt":
                 ctypes.byref(info),
             )
             if not created:
+                error_code = ctypes.get_last_error()
                 raise IsolationError(
-                    f"AppContainer launch failed with Windows error {ctypes.get_last_error()}",
+                    f"AppContainer launch failed with Windows error {error_code}",
                     stage="APPCONTAINER_CREATE",
+                    os_error_code=error_code,
                 )
             process = _WindowsSandboxProcess(info.hProcess, info.dwProcessId, identity)
             process._thread_handle = info.hThread

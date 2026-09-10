@@ -37,6 +37,7 @@ def test_workflow_uploads_only_allowlisted_phase11_evidence() -> None:
     assert "$failedTargets += $testTarget" in workflow
     assert "AISCP_SAFE_DIAGNOSTIC: decision=[A-Z_]+" in workflow
     assert "failure_stage=(none|[A-Z_]+)" in workflow
+    assert "os_error_code=(none|[0-9]+)" in workflow
     assert "Write-Output $_.Value" in workflow
     assert "$env:GITHUB_STEP_SUMMARY" in workflow
     assert '"- $failedTarget"' in workflow

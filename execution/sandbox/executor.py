@@ -102,11 +102,14 @@ class SafeExecutor:
                 if "unavailable" in str(exc).lower()
                 else ReasonCode.PROCESS_ISOLATION_FAILED
             )
+            failure_metadata = {"isolation_failure_stage": exc.stage}
+            if exc.os_error_code is not None:
+                failure_metadata["isolation_error_code"] = str(exc.os_error_code)
             decision = self._decision(
                 DecisionAction.DENY,
                 reason,
                 100,
-                metadata={"isolation_failure_stage": exc.stage},
+                metadata=failure_metadata,
             )
         except Exception:
             exit_code = None
