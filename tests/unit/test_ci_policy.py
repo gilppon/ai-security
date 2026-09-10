@@ -34,6 +34,6 @@ def test_workflow_uploads_only_allowlisted_phase11_evidence() -> None:
     assert "failed targets:" in workflow
     assert "$failedTargets += $testTarget" in workflow
     assert "$env:GITHUB_STEP_SUMMARY" in workflow
-    assert '"- ``$failedTarget``"' in workflow
+    assert '"- $failedTarget"' in workflow
     assert "path: .artifacts/phase11/resilience-evidence.json" in workflow
     assert "path: $capturedLog" not in workflow
