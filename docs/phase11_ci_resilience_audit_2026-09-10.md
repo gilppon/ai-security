@@ -1,7 +1,7 @@
 # Phase 11 CI Resilience and Evidence — Pre-fix Audit
 
 Date: 2026-09-10  
-Status: **GITHUB CI BLOCKED; ADDITIONAL APPROVAL REQUIRED**
+Status: **CLOSED** (2026-09-10)
 
 ## Official architecture scope
 
@@ -149,5 +149,14 @@ native regression now treats unsupported host isolation as an explicit
 fail-closed outcome, while retaining the ALLOW assertions for hosts that support
 the boundary. This is capability verification, not a skipped test.
 
-Phase 11 remains incomplete, and Phase 12 must not start, until an updated
-GitHub workflow passes every job.
+## Final verification and closure
+
+GitHub Actions run `34475525577` completed successfully with all 19 jobs
+passing. This includes the six-stage fault matrix, all Phase 0–11 regression
+jobs, the Windows 11 ARM AppContainer capability path, and the split Phase 10
+audit groups. Local verification completed with `306 passed, 3 skipped`, build
+success, and no known dependency vulnerabilities.
+
+P11-H-004, P11-H-005, P11-H-006, and P11-M-003 are closed by the approved
+remediations and the final CI evidence above. No Phase 12 work is included in
+this audit.

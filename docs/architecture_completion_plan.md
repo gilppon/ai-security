@@ -77,6 +77,10 @@ Status: **COMPLETE ON WINDOWS 11** (2026-09-10). Enforcement evidence is in
 
 ## Phase 11 — CI Resilience and Evidence
 
+Status: **COMPLETE** (2026-09-10). GitHub Actions run `34475525577` passed all
+19 jobs; local verification recorded `306 passed, 3 skipped`, package build
+success, and a clean dependency audit.
+
 ### 범위
 
 - 전체 fault matrix CI job
@@ -90,6 +94,8 @@ Status: **COMPLETE ON WINDOWS 11** (2026-09-10). Enforcement evidence is in
 - 실패한 stage와 reason code를 식별할 수 있다.
 - raw input/output/secret이 artifact와 로그에 없다.
 - latency regression threshold 위반 시 CI가 실패한다.
+- 미지원 네이티브 격리 호스트는 테스트를 건너뛰지 않고 명시적으로
+  fail-closed DENY를 반환한다.
 
 ## Phase 12 — Production Policy Lifecycle
 

@@ -1,6 +1,6 @@
 # Phase 11 — Deterministic Resilience Evaluation
 
-Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING**
+Status: **COMPLETE** (2026-09-10)
 
 ## Implemented
 
@@ -27,10 +27,14 @@ Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING**
 
 ## Verification
 
-- Focused Phase 11 tests: `16 passed`.
-- Full local suite: `305 passed, 3 skipped` on Windows 11 with native isolation.
+- Focused Phase 11 tests: passed.
+- Full local suite: `306 passed, 3 skipped` on Windows 11 with native isolation.
 - Python 3.12 full suite passes with the host-native marker excluded; the same
   native-isolation tests pass from the dedicated root-path Python 3.12 runtime.
 - Local six-stage matrix: 6/6 passed; p95 1 ms, max 1 ms.
 - Package build and dependency audit passed.
-- Phase 11 is not complete until the committed workflow passes on GitHub.
+- GitHub Actions run `34475525577` passed all 19 jobs, including the complete
+  fault matrix, Phase 0–11 regression matrix, Phase 9 AppContainer capability
+  path, and Phase 10 audit tests.
+- Captured pytest logs remain runner-local; only allowlisted failure targets and
+  bounded isolation diagnostics are exposed.
