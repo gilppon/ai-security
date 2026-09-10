@@ -54,8 +54,12 @@ jobs:
             label: appcontainer-native
             tests: tests/security/test_process_firewall.py::test_appcontainer_enforces_token_network_and_read_only_workspace
           - phase: phase-10
-            label: append-only
+            label: append-only-core
             tests: tests/unit/test_append_only_audit.py
+            pytest_args: '-k "not windows_audit_file_removes_inherited_acl"'
+          - phase: phase-10
+            label: append-only-dacl
+            tests: tests/unit/test_append_only_audit.py::test_windows_audit_file_removes_inherited_acl
           - phase: phase-10
             label: r2-unit
             tests: tests/unit/test_r2_audit_replica.py

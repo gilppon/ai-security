@@ -100,14 +100,19 @@ failure have each reached the three-failure circuit breaker.
 
 | ID | Severity | Finding | Reproduction / evidence |
 |---|---|---|---|
-| P11-H-005 | High | The approved short-path native-runtime remediation passes locally but does not close the AppContainer regression on `windows-latest`. | The original Phase 6 failure plus Phase 9 failures in runs `34470177181` and `34470626831`; the native runtime preparation step itself succeeds. |
-| P11-H-006 | High | Phase 10 has a repeatable GitHub-hosted Windows regression that is not reproduced by the same Python 3.12 test group locally. | Phase 10 failed in runs `34463714748`, `34470177181`, and `34470626831`; the exact local group passed twice. |
+| P11-H-005 | High | The approved short-path native-runtime remediation passes locally but does not close the AppContainer regression on `windows-latest`. | The original Phase 6 failure plus later Phase 9 failures. Split run `34472484173` proves `sandbox-core` passes and only `appcontainer-native` fails. |
+| P11-H-006 | High | Phase 10 has a repeatable GitHub-hosted Windows regression that is not reproduced by the same Python 3.12 test group locally. | Phase 10 failed in three combined runs. Split run `34472484173` proves both R2 jobs pass and only `append-only` fails. |
 | P11-M-003 | Medium | Sanitized per-target diagnostics are retained in the runner log but are not exposed by the unauthenticated GitHub check API, which reports only exit code 1. | Run `34470626831` check annotations contain `Process completed with exit code 1` without the safe failing-target message. |
 
 No code remediation for P11-H-006 or P11-M-003 has been applied. The next-best
 diagnostic is to write only the allowlisted failing test paths to the GitHub job
 summary, then use that evidence to reproduce and prepare a separately reviewed
 fix. P11-H-005 remains open despite its approved first remediation.
+
+Run `34472484173` additionally split host-specific groups into allowlisted job
+labels. This closes the public failure-localization gap in P11-M-003 without
+publishing captured pytest output: Phase 9 resolves to `appcontainer-native`,
+and Phase 10 resolves to `append-only`. The two High findings remain open.
 
 Phase 11 remains incomplete, and Phase 12 must not start, until an updated
 GitHub workflow passes every job.
