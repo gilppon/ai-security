@@ -99,7 +99,7 @@ success, and a clean dependency audit.
 
 ## Phase 12 — Production Policy Lifecycle
 
-Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING**
+Status: **COMPLETE** (2026-09-11; GitHub Actions run `34540595732`, 20/20 jobs succeeded)
 
 ### 범위
 
@@ -130,7 +130,7 @@ Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING**
 - activation 성공·거부가 raw policy/key 없이 fingerprint로 감사된다.
 - 로컬 Python 3.12 전체 결과는 `320 passed, 3 skipped`; build, dependency
   audit, fault matrix가 통과했다.
-- 최종 COMPLETE 판정은 GitHub Phase 0–12 CI 증거 후 갱신한다.
+- GitHub Phase 0–12 CI run `34540595732`에서 20/20 jobs가 통과해 COMPLETE로 판정했다.
 
 ## Final Completion Gate
 

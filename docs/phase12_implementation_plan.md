@@ -1,6 +1,6 @@
 # Phase 12 — Policy Lifecycle Safety
 
-Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING** (2026-09-11)
+Status: **COMPLETE** (2026-09-11)
 
 ## Implemented
 
@@ -36,6 +36,9 @@ Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING** (2026-09-1
 - Dependency audit: no known vulnerabilities found.
 - Hardcoded-secret and unsafe-shell scans: no new finding.
 
-## Remaining
+## Remote verification
 
-- GitHub Actions Phase 0–12 regression and fault-matrix evidence.
+- GitHub Actions `Security regression` run
+  [34540595732](https://github.com/gilppon/ai-security/actions/runs/34540595732):
+  **20/20 jobs succeeded**, including the Phase 12 policy-lifecycle matrix,
+  native AppContainer enforcement, R2 live replication, and the fault matrix.

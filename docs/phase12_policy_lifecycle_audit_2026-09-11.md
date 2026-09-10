@@ -2,7 +2,7 @@
 
 Audit date: 2026-09-11 (Asia/Seoul)
 
-Status: **APPROVED REMEDIATION IMPLEMENTED; GITHUB CI EVIDENCE PENDING**
+Status: **CLOSED — APPROVED REMEDIATION VERIFIED**
 
 Scope: extract the Phase 12 requirements, map the current implementation,
 reproduce Critical/High failures, and record the proposed remediation boundary.
@@ -225,9 +225,8 @@ Only the findings explicitly approved by the user will be changed.
 
 ## 9. Gate decision
 
-Phase 12 is not yet marked **COMPLETE** because remote CI evidence is still
-required. The approved remediation is implemented and locally verified; the
-remaining gate is the Phase 0–12 GitHub Actions run.
+Phase 12 is marked **COMPLETE**. The approved remediation is locally verified,
+and GitHub Actions run `34540595732` passed all 20 Phase 0–12 jobs.
 
 ## 10. Approval and remediation record
 
@@ -258,4 +257,6 @@ scope was changed.
 - Dependency audit: no known vulnerabilities found.
 - Security pattern scan: no new hardcoded credential or `shell=True` use.
 
-Final closure remains pending the Phase 0–12 GitHub Actions run.
+Final closure evidence: GitHub Actions `Security regression` run
+[34540595732](https://github.com/gilppon/ai-security/actions/runs/34540595732)
+completed successfully with **20/20 jobs passed**.
