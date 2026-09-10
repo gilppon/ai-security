@@ -87,6 +87,17 @@ jobs:
             }
           }
           if ($failedTargets.Count -ne 0) {
+            @(
+              "## Sanitized regression failure",
+              "",
+              "Phase: `${{ matrix.phase }}`",
+              "",
+              "Failed test targets:"
+            ) | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            foreach ($failedTarget in $failedTargets) {
+              "- ``$failedTarget``" |
+                Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+            }
             Write-Error (
               "${{ matrix.phase }} failed targets: " + ($failedTargets -join ", ")
             )
