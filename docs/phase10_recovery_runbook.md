@@ -36,3 +36,17 @@ replica rejection, host loss, or retention-manifest mismatch.
 Resume security-sensitive operations only when local verification, immutable
 replica comparison, external anchor verification, and a test audit write all
 succeed. Any ambiguous state remains DENY.
+
+## Cloudflare R2 live verification
+
+Supply `AI_SECURITY_R2_ENDPOINT`, `AI_SECURITY_R2_BUCKET`,
+`AI_SECURITY_R2_ACCESS_KEY_ID`, and `AI_SECURITY_R2_SECRET_ACCESS_KEY` only in
+the invoking process environment. Run:
+
+`python -m pytest tests/integration/test_r2_audit_replica_live.py -q`
+
+On Windows, `scripts/verify_phase10_r2.ps1` prompts for both credential values
+without echoing them and removes all four variables when the test exits.
+
+The gate passes only when the content-addressed write is idempotent and the
+enabled bucket-lock rule rejects deletion beneath `audit/`.

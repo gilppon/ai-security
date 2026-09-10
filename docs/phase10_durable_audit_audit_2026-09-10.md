@@ -1,7 +1,7 @@
 # Phase 10 Durable Audit — Pre-fix Audit
 
 Date: 2026-09-10  
-Status: Local findings remediated and verified; external WORM evidence pending
+Status: Closed; local findings and external Cloudflare R2 WORM behavior verified
 
 ## Scope
 
@@ -35,8 +35,18 @@ retention, recovery, and replica-failure tests pass.
 
 - P10-H-001, P10-H-002: closed by cross-process locking and in-lock full-chain
   verification; 3 concurrent processes preserve one 30-record chain.
-- P10-H-003: code path closed by required immutable replica acknowledgement;
-  real-provider operational evidence remains a Phase 10 completion blocker.
+- P10-H-003: closed by required immutable replica acknowledgement and a live
+  Cloudflare R2 test proving write, idempotent replay, and bucket-lock deletion
+  denial beneath `audit/`.
 - P10-M-001 through P10-M-004: closed by target revalidation, complete-write
   loops, owner-only Windows ACLs, and hash-linked retained segments with a
   verified recovery manifest.
+
+## Completion evidence
+
+- Date: 2026-09-10
+- Provider: Cloudflare R2, private `ai-security` bucket
+- Retention control: enabled seven-day Bucket Lock for prefix `audit/`
+- Live gate: `tests/integration/test_r2_audit_replica_live.py` passed
+- Credential handling: secure interactive input, process-only environment, and
+  cleanup on completion

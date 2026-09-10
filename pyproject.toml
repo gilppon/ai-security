@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Proprietary deterministic AI security control plane"
 requires-python = ">=3.12"
 dependencies = [
+  "boto3>=1.35,<2",
   "fastapi>=0.115,<1",
   "flatbuffers>=25.2,<26",
   "pydantic>=2.10,<3",

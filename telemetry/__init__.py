@@ -8,6 +8,7 @@ from telemetry.audit import (
     SegmentedAuditFileSink,
     StructuredAuditLogger,
 )
+from telemetry.r2 import R2WormAuditReplica
 
 __all__ = [
     "AppendOnlyFileAuditSink",
@@ -16,6 +17,7 @@ __all__ = [
     "AuditRecord",
     "DirectoryWormAuditReplica",
     "RequiredReplicatedAuditSink",
+    "R2WormAuditReplica",
     "SegmentedAuditFileSink",
     "StructuredAuditLogger",
 ]
