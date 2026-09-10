@@ -50,5 +50,7 @@ class SecurityPipeline:
                 reason_codes=(ReasonCode.UNKNOWN_SECURITY_STATE,),
                 metadata={"error_type": type(exc).__name__},
             )
+        if self.failure_injector is not None:
+            self.failure_injector.check("audit")
         self.audit_logger.record(normalized, decision)
         return decision

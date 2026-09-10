@@ -18,6 +18,7 @@ class ResilienceScenario(BaseModel):
     scenario_id: str = Field(min_length=3, max_length=128, pattern=r"^[a-z0-9]+(?:[._-][a-z0-9]+)*$")
     stage: FaultStage
     expected_decision: DecisionAction
+    expected_reason_codes: tuple[ReasonCode, ...] = ()
     max_duration_ms: int = Field(default=1_000, ge=1, le=60_000)
 
 
@@ -29,6 +30,8 @@ class ResilienceResult(BaseModel):
     decision: SecurityDecision
     duration_ms: int = Field(ge=0)
     within_budget: bool
+    decision_matches: bool = True
+    reason_codes_match: bool = True
     passed: bool
 
 
@@ -60,13 +63,20 @@ class ResilienceRunner:
             )
         duration_ms = max(0, math.ceil((time.perf_counter() - started) * 1_000))
         within_budget = duration_ms <= scenario.max_duration_ms
-        passed = decision.decision is scenario.expected_decision and within_budget
+        decision_matches = decision.decision is scenario.expected_decision
+        reason_codes_match = (
+            not scenario.expected_reason_codes
+            or decision.reason_codes == scenario.expected_reason_codes
+        )
+        passed = decision_matches and reason_codes_match and within_budget
         return ResilienceResult(
             scenario_id=scenario.scenario_id,
             stage=scenario.stage,
             decision=decision,
             duration_ms=duration_ms,
             within_budget=within_budget,
+            decision_matches=decision_matches,
+            reason_codes_match=reason_codes_match,
             passed=passed,
         )
 

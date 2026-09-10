@@ -33,6 +33,7 @@ include = [
   "core*",
   "detection*",
   "execution*",
+  "evaluation*",
   "input_security*",
   "output_security*",
   "policy*",

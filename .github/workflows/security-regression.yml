@@ -1,0 +1,87 @@
+name: Security regression
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phase-regression:
+    name: ${{ matrix.phase }} security regression
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - phase: phase-0-1
+            tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/unit/test_policy_startup.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_policy_startup_gate.py tests/integration/test_security_pipeline.py
+          - phase: phase-2
+            tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_normalizer.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
+          - phase: phase-3
+            tests: tests/unit/test_content_security.py tests/security/test_content_firewall.py tests/integration/test_content_api.py
+          - phase: phase-4
+            tests: tests/unit/test_plan_models.py tests/unit/test_plan_chain_policy.py tests/unit/test_mcp_result_capabilities.py tests/security/test_tool_firewall.py tests/security/test_mcp_gateway.py tests/security/test_mcp_result_gateway.py tests/security/test_plan_validator.py tests/security/test_tool_resource_integration.py tests/integration/test_authorization_api.py
+          - phase: phase-5
+            tests: tests/unit/test_secret_detector.py tests/security/test_output_guard.py tests/integration/test_output_api.py
+          - phase: phase-6
+            tests: tests/security/test_database_api_firewalls.py tests/security/test_filesystem_firewall.py tests/security/test_network_firewall.py tests/security/test_process_firewall.py
+          - phase: phase-7
+            tests: tests/unit/test_runtime_anomaly.py tests/security/test_runtime_monitor.py tests/integration/test_runtime_api.py
+          - phase: phase-8
+            tests: tests/unit/test_redteam_models.py tests/unit/test_redteam_runner.py tests/security/test_redteam_security.py tests/integration/test_redteam_regression.py
+          - phase: phase-9
+            tests: tests/unit/test_sandbox_capabilities.py tests/unit/test_sandbox_limits.py tests/unit/test_sandbox_readiness.py tests/security/test_sandbox_isolation.py
+          - phase: phase-10
+            tests: tests/unit/test_append_only_audit.py tests/unit/test_r2_audit_replica.py tests/integration/test_r2_audit_replica_live.py
+          - phase: phase-11
+            tests: tests/unit/test_ci_policy.py tests/unit/test_fault_injection.py tests/unit/test_resilience_runner.py tests/unit/test_resilience_catalog.py tests/unit/test_resilience_evidence.py tests/integration/test_fault_pipeline.py tests/integration/test_phase11_fault_matrix.py
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project
+        run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Run sanitized phase regression
+        shell: pwsh
+        run: |
+          $capturedLog = Join-Path $env:RUNNER_TEMP "${{ matrix.phase }}.log"
+          python -m pytest -q ${{ matrix.tests }} *> $capturedLog
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "${{ matrix.phase }} regression failed; reproduce locally for protected diagnostics"
+            exit 1
+          }
+          Write-Output "${{ matrix.phase }} regression passed"
+
+  fault-matrix:
+    name: Complete fault matrix and latency gate
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project
+        run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Run complete fault matrix
+        run: python -m evaluation --evidence .artifacts/phase11/resilience-evidence.json
+      - name: Upload sanitized evidence history
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: phase11-resilience-${{ github.run_id }}
+          path: .artifacts/phase11/resilience-evidence.json
+          if-no-files-found: warn
+          retention-days: 30

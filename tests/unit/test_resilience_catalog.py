@@ -9,12 +9,15 @@ from core.decisions.reasons import ReasonCode
 def test_default_catalog_is_server_owned_and_bounded() -> None:
     scenarios = default_resilience_catalog()
 
+    assert [scenario.stage for scenario in scenarios] == list(FaultStage)
     assert [scenario.scenario_id for scenario in scenarios] == [
-        "pipeline-timeout",
-        "audit-sink-failure",
-        "resource-exhaustion",
+        f"{stage.value}-stage-failure" for stage in FaultStage
     ]
     assert all(scenario.expected_decision is DecisionAction.DENY for scenario in scenarios)
+    assert all(
+        scenario.expected_reason_codes == (ReasonCode.UNKNOWN_SECURITY_STATE,)
+        for scenario in scenarios
+    )
 
 
 def test_resilience_summary_reports_p95_and_failures() -> None:
@@ -42,4 +45,3 @@ def test_resilience_summary_reports_p95_and_failures() -> None:
     assert summary.failed == 1
     assert summary.p95_duration_ms == 100
     assert summary.max_duration_ms == 100
-

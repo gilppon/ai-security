@@ -41,3 +41,24 @@ def test_resilience_runner_rejects_duplicate_suite_ids() -> None:
     else:  # pragma: no cover
         raise AssertionError("duplicate resilience ids were accepted")
 
+
+def test_resilience_runner_fails_on_reason_code_mismatch() -> None:
+    scenario = ResilienceScenario(
+        scenario_id="reason-mismatch",
+        stage=FaultStage.POLICY,
+        expected_decision=DecisionAction.DENY,
+        expected_reason_codes=(ReasonCode.UNKNOWN_SECURITY_STATE,),
+    )
+
+    result = ResilienceRunner().run(
+        scenario,
+        lambda: SecurityDecision(
+            decision=DecisionAction.DENY,
+            risk_score=100,
+            reason_codes=(ReasonCode.DEFAULT_DENY,),
+        ),
+    )
+
+    assert result.decision_matches is True
+    assert result.reason_codes_match is False
+    assert result.passed is False

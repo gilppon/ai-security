@@ -1,28 +1,18 @@
 from evaluation.faults import FaultStage
 from evaluation.scenarios import ResilienceScenario
 from core.decisions.actions import DecisionAction
+from core.decisions.reasons import ReasonCode
 
 
 def default_resilience_catalog() -> tuple[ResilienceScenario, ...]:
     """Return the bounded, server-owned Phase 11 fault catalog."""
-    return (
+    return tuple(
         ResilienceScenario(
-            scenario_id="pipeline-timeout",
-            stage=FaultStage.RISK,
+            scenario_id=f"{stage.value}-stage-failure",
+            stage=stage,
             expected_decision=DecisionAction.DENY,
-            max_duration_ms=5_000,
-        ),
-        ResilienceScenario(
-            scenario_id="audit-sink-failure",
-            stage=FaultStage.AUDIT,
-            expected_decision=DecisionAction.DENY,
-            max_duration_ms=5_000,
-        ),
-        ResilienceScenario(
-            scenario_id="resource-exhaustion",
-            stage=FaultStage.CONTEXT,
-            expected_decision=DecisionAction.DENY,
-            max_duration_ms=5_000,
-        ),
+            expected_reason_codes=(ReasonCode.UNKNOWN_SECURITY_STATE,),
+            max_duration_ms=1_000,
+        )
+        for stage in FaultStage
     )
-
