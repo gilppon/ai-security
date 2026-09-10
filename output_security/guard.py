@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -28,6 +29,7 @@ from output_security.redactor import OutputRedactor
 from output_security.secrets import secret_spans
 from output_security.urls import SensitiveURLDetector
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from secret_detection.detector import SecretDetector
 from secret_detection.models import SecretCategory, SecretLocation
 from telemetry.audit import StructuredAuditLogger
@@ -50,6 +52,7 @@ class OutputGuard:
         url_detector: OutputSpanDetectorContract | None = None,
         internal_data_detector: OutputSpanDetectorContract | None = None,
         redactor: OutputRedactorContract | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -60,6 +63,7 @@ class OutputGuard:
         self._url_detector = url_detector or SensitiveURLDetector()
         self._internal_data_detector = internal_data_detector or InternalDataDetector()
         self._redactor = redactor or OutputRedactor()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -98,8 +102,14 @@ class OutputGuard:
                 user_trust=TrustLevel.TRUSTED,
                 agent_trust=TrustLevel.UNTRUSTED,
             )
-            risk = self._risk_engine.score(event, context, security_findings)
-            decision = self._policy_engine.decide(risk, security_findings)
+            decision = decide_with_active_policy(
+                event=event,
+                context=context,
+                findings=security_findings,
+                risk_engine=self._risk_engine,
+                policy_engine=self._policy_engine,
+                policy_detector=self._policy_detector,
+            )
             decision = decision.model_copy(update={"metadata": {
                 "finding_codes": [finding.code for finding in findings],
                 "redaction_count": redaction_count,

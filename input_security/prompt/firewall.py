@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -25,6 +26,7 @@ from input_security.prompt.obfuscation import ObfuscationDetector
 from input_security.prompt.rules import PromptRuleDetector
 from input_security.prompt.utils import fingerprint
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from telemetry.audit import StructuredAuditLogger
 
 
@@ -37,6 +39,7 @@ class PromptFirewall:
         encoding_detector: PromptTextDetectorContract | None = None,
         obfuscation_detector: PromptObfuscationDetectorContract | None = None,
         jailbreak_detector: PromptTextDetectorContract | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -53,6 +56,7 @@ class PromptFirewall:
 
             jailbreak_detector = JailbreakDetector()
         self._jailbreak_detector = jailbreak_detector
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -93,8 +97,14 @@ class PromptFirewall:
                 user_trust=trust_level,
                 agent_trust=TrustLevel.TRUSTED,
             )
-            risk = self._risk_engine.score(event, context, security_findings)
-            decision = self._policy_engine.decide(risk, security_findings)
+            decision = decide_with_active_policy(
+                event=event,
+                context=context,
+                findings=security_findings,
+                risk_engine=self._risk_engine,
+                policy_engine=self._policy_engine,
+                policy_detector=self._policy_detector,
+            )
             decision = decision.model_copy(update={
                 "metadata": {
                     "finding_codes": [finding.code for finding in findings],

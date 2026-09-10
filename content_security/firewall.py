@@ -1,6 +1,7 @@
 from collections.abc import Iterable
 
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -25,6 +26,7 @@ from content_security.source_trust.models import SourceTrustAssessment
 from content_security.utils import fingerprint
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from telemetry.audit import StructuredAuditLogger
 
 
@@ -34,6 +36,7 @@ class ContentFirewall:
         *,
         scanner: DocumentScannerContract | None = None,
         source_trust_engine: SourceTrustEngineContract | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         context_isolation: ContextIsolationContract | None = None,
@@ -42,6 +45,7 @@ class ContentFirewall:
     ) -> None:
         self._scanner = scanner or DocumentScanner()
         self._source_trust_engine = source_trust_engine or SourceTrustEngine()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._context_isolation = context_isolation or ContextIsolation()
@@ -96,8 +100,14 @@ class ContentFirewall:
                 user_trust=TrustLevel.TRUSTED,
                 agent_trust=TrustLevel.TRUSTED,
             )
-            risk = self._risk_engine.score(event, context, security_findings)
-            decision = self._policy_engine.decide(risk, security_findings)
+            decision = decide_with_active_policy(
+                event=event,
+                context=context,
+                findings=security_findings,
+                risk_engine=self._risk_engine,
+                policy_engine=self._policy_engine,
+                policy_detector=self._policy_detector,
+            )
             decision = decision.model_copy(update={"metadata": {
                 "finding_codes": [finding.code for finding in findings],
                 "source_trust": assessment.trust_level.value,

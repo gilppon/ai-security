@@ -24,7 +24,7 @@ jobs:
         include:
           - phase: phase-0-1
             label: core
-            tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/unit/test_policy_startup.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_policy_startup_gate.py tests/integration/test_security_pipeline.py
+            tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_security_pipeline.py
           - phase: phase-2
             label: prompt
             tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_import_order.py tests/unit/test_prompt_normalizer.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
@@ -78,6 +78,9 @@ jobs:
           - phase: phase-11
             label: resilience
             tests: tests/unit/test_ci_policy.py tests/unit/test_fault_injection.py tests/unit/test_resilience_runner.py tests/unit/test_resilience_catalog.py tests/unit/test_resilience_evidence.py tests/integration/test_fault_pipeline.py tests/integration/test_phase11_fault_matrix.py
+          - phase: phase-12
+            label: policy-lifecycle
+            tests: tests/unit/test_policy_startup.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/security/test_policy_phase12.py tests/integration/test_policy_startup_gate.py tests/integration/test_policy_runtime_activation.py
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6

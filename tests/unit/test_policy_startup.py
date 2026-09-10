@@ -21,7 +21,7 @@ def test_production_startup_requires_verified_policy() -> None:
 def test_verified_startup_requires_key_and_service() -> None:
     settings = Settings(require_verified_policy=True)
 
-    with pytest.raises(RuntimeError, match="signer id and key"):
+    with pytest.raises(RuntimeError, match="signer identities and keys"):
         activate_policy_or_raise(settings, None)
 
 
@@ -30,7 +30,9 @@ def test_invalid_key_is_rejected_without_logging_secret() -> None:
         require_verified_policy=True,
         policy_signer_id="release-key",
         policy_signing_key_hex="not-hex",
+        policy_approver_id="approver-1",
+        policy_approval_key_hex="11" * 32,
     )
 
-    with pytest.raises(RuntimeError, match="hexadecimal"):
+    with pytest.raises(RuntimeError, match="signer key must be hexadecimal"):
         verifier_from_settings(settings)

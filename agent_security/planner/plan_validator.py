@@ -18,6 +18,7 @@ from agent_security.tools.registry import ToolRegistry
 from agent_security.tools.schemas import ToolDefinition
 from agent_security.tools.validator import ToolArgumentValidator
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -28,6 +29,7 @@ from core.fingerprints import fingerprint_text
 from core.risk.engine import RiskEngine
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from telemetry.audit import StructuredAuditLogger
 
 
@@ -38,6 +40,7 @@ class PlanValidator:
         *,
         argument_validator: ToolArgumentValidatorContract | None = None,
         chain_policy: PlanChainPolicyContract | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -46,6 +49,7 @@ class PlanValidator:
         self._registry = registry or ToolRegistry()
         self._argument_validator = argument_validator or ToolArgumentValidator()
         self._chain_policy = chain_policy or PlanChainPolicy()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -186,8 +190,14 @@ class PlanValidator:
             user_trust=TrustLevel.TRUSTED,
             agent_trust=event.trust_level,
         )
-        risk = self._risk_engine.score(event, context, active_findings)
-        return self._policy_engine.decide(risk, active_findings)
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=active_findings,
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
 
 def _plan_fingerprint(request: AgentPlanRequest) -> str:

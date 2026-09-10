@@ -18,11 +18,16 @@ from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
 from core.events.factory import SecurityEventFactory
 from core.events.types import TrustLevel
+from core.contracts import DetectionEngineContract
 from input_security.prompt.firewall import PromptFirewall
 from input_security.prompt.models import MAX_PROMPT_LENGTH, PromptScanRequest
 from output_security.guard import OutputGuard
 from output_security.models import MAX_OUTPUT_LENGTH, OutputScanRequest
 from telemetry.audit import StructuredAuditLogger
+from app.config import Settings
+from app.policy_startup import activate_policy_or_raise, activation_service_from_settings
+from policy.lifecycle import PolicyBundleRegistry
+from policy.runtime import ActivePolicyDetector
 
 
 _SUCCESS_ACTIONS = frozenset({
@@ -55,12 +60,13 @@ class CLIApplication:
         prompt_firewall: PromptFirewall | None = None,
         content_firewall: ContentFirewall | None = None,
         output_guard: OutputGuard | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         audit_logger: StructuredAuditLogger | None = None,
         event_factory: SecurityEventFactory | None = None,
     ) -> None:
-        self._prompt_firewall = prompt_firewall or PromptFirewall()
-        self._content_firewall = content_firewall or ContentFirewall()
-        self._output_guard = output_guard or OutputGuard()
+        self._prompt_firewall = prompt_firewall or PromptFirewall(policy_detector=policy_detector)
+        self._content_firewall = content_firewall or ContentFirewall(policy_detector=policy_detector)
+        self._output_guard = output_guard or OutputGuard(policy_detector=policy_detector)
         self._audit_logger = audit_logger or StructuredAuditLogger()
         self._event_factory = event_factory or SecurityEventFactory()
 
@@ -203,7 +209,11 @@ def _write_json(stdout: TextIO, value: BaseModel) -> None:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    return CLIApplication().run(
+    settings = Settings.from_environment()
+    activation_service = activation_service_from_settings(settings)
+    registry = activation_service.registry if activation_service else PolicyBundleRegistry()
+    activate_policy_or_raise(settings, activation_service)
+    return CLIApplication(policy_detector=ActivePolicyDetector(registry)).run(
         tuple(sys.argv[1:] if argv is None else argv),
         stdin=sys.stdin,
         stdout=sys.stdout,

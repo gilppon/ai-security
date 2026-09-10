@@ -1,6 +1,7 @@
 from agent_security.identity import is_valid_identity
 import re
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -11,6 +12,7 @@ from core.fingerprints import fingerprint_text
 from core.risk.engine import RiskEngine
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from runtime.behavior.anomaly import RuntimeAnomalyDetector
 from runtime.behavior.baseline import BehaviorBaseline
 from runtime.behavior.profiles import BehaviorProfile
@@ -36,6 +38,7 @@ class RuntimeMonitor:
         baseline: BehaviorBaseline | None = None,
         session_manager: SessionManager | None = None,
         anomaly_detector: RuntimeAnomalyDetector | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -44,6 +47,7 @@ class RuntimeMonitor:
         self._baseline = baseline or BehaviorBaseline(profiles)
         self._sessions = session_manager or SessionManager()
         self._detector = anomaly_detector or RuntimeAnomalyDetector()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -162,12 +166,13 @@ class RuntimeMonitor:
                 reason = ReasonCode.RUNTIME_IDENTITY_UNVERIFIED
             else:
                 summary, reason = self._sessions.inspect(session_id, agent_id)
-            decision = _direct_decision(
+            decision = self._decide_reason(
+                event,
                 ReasonCode.RUNTIME_SESSION_INSPECTED if reason is None else reason,
                 allow=reason is None,
             )
         except Exception:
-            decision = _direct_decision(ReasonCode.UNKNOWN_SECURITY_STATE, allow=False)
+            decision = self._decide_reason(event, ReasonCode.UNKNOWN_SECURITY_STATE, allow=False)
             summary = None
         self._audit_logger.record(event, decision)
         return SessionInspectionResult(
@@ -208,8 +213,41 @@ class RuntimeMonitor:
             user_trust=TrustLevel.TRUSTED,
             agent_trust=event.trust_level,
         )
-        risk = self._risk_engine.score(event, context, security_findings)
-        return self._policy_engine.decide(risk, security_findings)
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=security_findings,
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
+
+    def _decide_reason(
+        self,
+        event: SecurityEvent,
+        reason: ReasonCode,
+        *,
+        allow: bool,
+    ) -> SecurityDecision:
+        finding = DetectionFinding(
+            rule_id="ASEC-RUNTIME-SESSION-001",
+            severity=Severity.INFO if allow else Severity.CRITICAL,
+            risk_score=0 if allow else 100,
+            actions=(RuleAction.ALLOW if allow else RuleAction.DENY, RuleAction.AUDIT),
+            reason_codes=(reason.value,),
+        )
+        context = SecurityContext(
+            user_trust=TrustLevel.TRUSTED,
+            agent_trust=event.trust_level,
+        )
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
 
 def _finding(code: str, reason: ReasonCode, risk_score: int) -> RuntimeFinding:
@@ -220,10 +258,3 @@ def _finding(code: str, reason: ReasonCode, risk_score: int) -> RuntimeFinding:
         reason_code=reason.value,
     )
 
-
-def _direct_decision(reason: ReasonCode, *, allow: bool) -> SecurityDecision:
-    return SecurityDecision(
-        decision=DecisionAction.ALLOW if allow else DecisionAction.DENY,
-        risk_score=0 if allow else 100,
-        reason_codes=(reason,),
-    )

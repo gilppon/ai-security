@@ -5,8 +5,10 @@ from fastapi import FastAPI
 from api.router import router
 from app.config import Settings
 from app.dependencies import get_settings
-from app.policy_startup import activate_policy_or_raise
+from app.policy_startup import activate_policy_or_raise, activation_service_from_settings
 from policy.activation import PolicyActivationService
+from policy.lifecycle import PolicyBundleRegistry
+from policy.runtime import ActivePolicyDetector
 
 
 def create_app(
@@ -15,9 +17,15 @@ def create_app(
     policy_activation_service: PolicyActivationService | None = None,
 ) -> FastAPI:
     active_settings = settings or get_settings()
+    active_service = policy_activation_service or activation_service_from_settings(active_settings)
+    policy_registry = (
+        active_service.registry
+        if active_service is not None
+        else PolicyBundleRegistry()
+    )
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        activate_policy_or_raise(active_settings, policy_activation_service)
+        activate_policy_or_raise(active_settings, active_service)
         yield
 
     application = FastAPI(
@@ -27,4 +35,5 @@ def create_app(
     )
 
     application.include_router(router)
+    application.state.policy_detector = ActivePolicyDetector(policy_registry)
     return application

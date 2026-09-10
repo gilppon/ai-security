@@ -2,6 +2,7 @@ from ipaddress import ip_address
 from urllib.parse import urlsplit
 
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -12,6 +13,7 @@ from core.fingerprints import fingerprint_text
 from core.risk.engine import RiskEngine
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from resource_security.models import ResourceAuthorizationResult
 from resource_security.network.dns import DNSResolver, IPAddress, SystemDNSResolver
 from resource_security.network.ip_policy import blocked_ip_reason
@@ -25,6 +27,7 @@ class NetworkFirewall:
         grants: tuple[NetworkGrant, ...] = (),
         *,
         resolver: DNSResolver | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -32,6 +35,7 @@ class NetworkFirewall:
     ) -> None:
         self._grants = grants
         self._resolver = resolver or SystemDNSResolver()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -152,8 +156,14 @@ class NetworkFirewall:
 
     def _decide(self, event: SecurityEvent, finding: DetectionFinding) -> SecurityDecision:
         context = SecurityContext(user_trust=TrustLevel.TRUSTED, agent_trust=TrustLevel.TRUSTED)
-        risk = self._risk_engine.score(event, context, (finding,))
-        return self._policy_engine.decide(risk, (finding,))
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
     @staticmethod
     def _deny(rule_id: str, reason: ReasonCode) -> DetectionFinding:

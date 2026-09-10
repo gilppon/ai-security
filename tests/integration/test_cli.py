@@ -2,6 +2,9 @@ import json
 from io import StringIO
 
 from app.cli import CLIApplication
+from core.decisions.actions import DecisionAction
+from policy.lifecycle import PolicyBundleRegistry, parse_policy_bundle
+from policy.runtime import ActivePolicyDetector
 from input_security.prompt.models import MAX_PROMPT_LENGTH
 from telemetry.audit import InMemoryAuditSink, StructuredAuditLogger
 
@@ -76,3 +79,31 @@ def test_cli_invalid_command_fails_closed_with_structured_reason() -> None:
     assert result["decision"]["decision"] == "DENY"
     assert result["decision"]["reason_codes"] == ["CLI_INPUT_INVALID"]
     assert len(sink.records) == 1
+
+
+def test_cli_applies_active_policy_rules() -> None:
+    source = """
+id: ASEC-POLICY-CLI-DENY
+title: Deny CLI prompt scans
+category: core
+severity: critical
+when:
+  event_type: prompt.scan
+match:
+  source: user
+risk:
+  score: 100
+actions: [deny, audit]
+"""
+    registry = PolicyBundleRegistry()
+    assert registry.publish(parse_policy_bundle("cli-policy", 1, source)).bundle is not None
+
+    exit_code, result = run_cli(
+        CLIApplication(policy_detector=ActivePolicyDetector(registry)),
+        ("scan-prompt",),
+        "Hello",
+    )
+
+    assert exit_code == 2
+    assert result["decision"]["decision"] == DecisionAction.DENY.value
+    assert "ASEC-POLICY-CLI-DENY" in result["decision"]["matched_rules"]

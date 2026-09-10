@@ -99,6 +99,8 @@ success, and a clean dependency audit.
 
 ## Phase 12 — Production Policy Lifecycle
 
+Status: **LOCAL IMPLEMENTATION VERIFIED; GITHUB CI EVIDENCE PENDING**
+
 ### 범위
 
 - production 환경의 verified policy 강제
@@ -113,6 +115,22 @@ success, and a clean dependency audit.
 - 정책 변경·승인·활성화·거부가 fingerprint 기반으로 감사된다.
 - private key와 raw policy secret이 로그에 없다.
 - rollback 및 signer mismatch 테스트가 통과한다.
+
+### 현재 증거 (2026-09-11)
+
+- canonical full-bundle signature와 fingerprint 재검증이 rule tampering을
+  차단한다.
+- authenticated approval이 policy id, version, fingerprint, signer에
+  바인딩된다.
+- 영속 store history가 restart 후 rollback과 policy-id switch를 거부한다.
+- verified-only registry가 unsigned publication을 거부한다.
+- 활성 정책 findings가 FastAPI·CLI 및 각 보안 경계의 Risk/Policy 흐름에
+  합류한다.
+- signer key-map overlap과 revocation cutover 회귀가 통과한다.
+- activation 성공·거부가 raw policy/key 없이 fingerprint로 감사된다.
+- 로컬 Python 3.12 전체 결과는 `320 passed, 3 skipped`; build, dependency
+  audit, fault matrix가 통과했다.
+- 최종 COMPLETE 판정은 GitHub Phase 0–12 CI 증거 후 갱신한다.
 
 ## Final Completion Gate
 

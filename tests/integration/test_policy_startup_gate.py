@@ -11,6 +11,8 @@ def test_fastapi_startup_gate_denies_missing_activation_service() -> None:
             require_verified_policy=True,
             policy_signer_id="release-key",
             policy_signing_key_hex="00" * 32,
+            policy_approver_id="approver-1",
+            policy_approval_key_hex="11" * 32,
         )
     )
     async def start() -> None:

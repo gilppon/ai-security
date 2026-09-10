@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -11,6 +12,7 @@ from core.fingerprints import fingerprint_text
 from core.risk.engine import RiskEngine
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from resource_security.filesystem.models import FilesystemAuthorizationRequest, FilesystemGrant
 from resource_security.filesystem.paths import containing_root, resolve_candidate
 from resource_security.filesystem.sensitive import is_sensitive_path
@@ -23,6 +25,7 @@ class FilesystemFirewall:
         self,
         grants: tuple[FilesystemGrant, ...] = (),
         *,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -37,6 +40,7 @@ class FilesystemFirewall:
             for root, operations in sorted(merged.items(), key=lambda item: str(item[0]).casefold())
         )
         self._roots = tuple(grant.root for grant in self._grants)
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -107,8 +111,14 @@ class FilesystemFirewall:
 
     def _decide(self, event: SecurityEvent, finding: DetectionFinding) -> SecurityDecision:
         context = SecurityContext(user_trust=TrustLevel.TRUSTED, agent_trust=TrustLevel.TRUSTED)
-        risk = self._risk_engine.score(event, context, (finding,))
-        return self._policy_engine.decide(risk, (finding,))
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
     @staticmethod
     def _finding(rule_id: str, reason: ReasonCode, *, deny: bool) -> DetectionFinding:

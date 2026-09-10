@@ -1,4 +1,5 @@
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -24,6 +25,7 @@ from agent_security.tools.contracts import ToolAuthorizerContract
 from agent_security.tools.schemas import ToolAuthorizationResult, ToolAuthorizeRequest
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from telemetry.audit import StructuredAuditLogger
 
 
@@ -36,6 +38,7 @@ class MCPGateway:
         *,
         description_scanner: MCPDescriptionScannerContract | None = None,
         result_capabilities: MCPResultCapabilityContract | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -43,9 +46,10 @@ class MCPGateway:
     ) -> None:
         self._manifests = manifests or MCPManifestRegistry()
         self._permissions = permissions or MCPPermissionModel()
-        self._tool_firewall = tool_firewall or ToolFirewall()
+        self._tool_firewall = tool_firewall or ToolFirewall(policy_detector=policy_detector)
         self._description_scanner = description_scanner or MCPDescriptionScanner()
         self._result_capabilities = result_capabilities or MCPResultCapabilityStore()
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -178,8 +182,14 @@ class MCPGateway:
 
     def _decide(self, event: SecurityEvent, finding: DetectionFinding) -> SecurityDecision:
         context = SecurityContext(user_trust=TrustLevel.TRUSTED, agent_trust=TrustLevel.TRUSTED)
-        risk = self._risk_engine.score(event, context, (finding,))
-        return self._policy_engine.decide(risk, (finding,))
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
     @staticmethod
     def _finding(

@@ -4,6 +4,7 @@ from agent_security.mcp.models import MCPResultInspectionResult, MCPResultReques
 from content_security.firewall import ContentFirewall
 from content_security.models import ContentScanRequest, ContentSourceType, ContentType
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import ACTION_PRECEDENCE, DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -16,6 +17,7 @@ from detection.models import DetectionFinding, RuleAction, Severity
 from output_security.guard import OutputGuard
 from output_security.models import OutputScanRequest, OutputSource
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from telemetry.audit import StructuredAuditLogger
 
 
@@ -33,14 +35,16 @@ class MCPResultGateway:
         *,
         content_firewall: ContentFirewall | None = None,
         output_guard: OutputGuard | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
         event_factory: SecurityEventFactory | None = None,
     ) -> None:
         self._capabilities = capabilities
-        self._content_firewall = content_firewall or ContentFirewall()
-        self._output_guard = output_guard or OutputGuard()
+        self._content_firewall = content_firewall or ContentFirewall(policy_detector=policy_detector)
+        self._output_guard = output_guard or OutputGuard(policy_detector=policy_detector)
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -189,12 +193,15 @@ class MCPResultGateway:
             actions=(RuleAction(action.value.lower()), RuleAction.AUDIT),
             reason_codes=(reason.value,),
         )
-        risk = self._risk_engine.score(
-            event,
-            SecurityContext(
-                user_trust=TrustLevel.TRUSTED,
-                agent_trust=TrustLevel.TRUSTED,
-            ),
-            (finding,),
+        context = SecurityContext(
+            user_trust=TrustLevel.TRUSTED,
+            agent_trust=TrustLevel.TRUSTED,
         )
-        return self._policy_engine.decide(risk, (finding,))
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )

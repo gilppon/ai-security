@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from runtime.models import (
     RuntimeEventRequest,
@@ -9,11 +9,16 @@ from runtime.models import (
     SessionInspectionResult,
 )
 from runtime.monitor import RuntimeMonitor
+from policy.runtime import ActivePolicyDetector
 
 
 @lru_cache
-def get_runtime_monitor() -> RuntimeMonitor:
-    return RuntimeMonitor()
+def _runtime_monitor(policy_detector: ActivePolicyDetector) -> RuntimeMonitor:
+    return RuntimeMonitor(policy_detector=policy_detector)
+
+
+def get_runtime_monitor(request: Request) -> RuntimeMonitor:
+    return _runtime_monitor(request.app.state.policy_detector)
 
 
 def get_verified_runtime_agent_id() -> str | None:

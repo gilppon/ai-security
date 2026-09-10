@@ -1,4 +1,5 @@
 from core.context.models import SecurityContext
+from core.contracts import DetectionEngineContract
 from core.decisions.actions import DecisionAction
 from core.decisions.models import SecurityDecision
 from core.decisions.reasons import ReasonCode
@@ -19,6 +20,7 @@ from agent_security.tools.schemas import (
 from agent_security.tools.validator import ToolArgumentValidator
 from detection.models import DetectionFinding, RuleAction, Severity
 from policy.engine import PolicyEngine
+from policy.runtime import decide_with_active_policy
 from resource_security.api.models import APIAuthorizationRequest
 from resource_security.contracts import (
     APIAuthorizer,
@@ -46,6 +48,7 @@ class ToolFirewall:
         process_firewall: ProcessAuthorizer | None = None,
         database_firewall: DatabaseAuthorizer | None = None,
         api_firewall: APIAuthorizer | None = None,
+        policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
         audit_logger: StructuredAuditLogger | None = None,
@@ -58,6 +61,7 @@ class ToolFirewall:
         self._process_firewall = process_firewall
         self._database_firewall = database_firewall
         self._api_firewall = api_firewall
+        self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
         self._audit_logger = audit_logger or StructuredAuditLogger()
@@ -212,8 +216,14 @@ class ToolFirewall:
 
     def _decide(self, event: SecurityEvent, finding: DetectionFinding) -> SecurityDecision:
         context = SecurityContext(user_trust=TrustLevel.TRUSTED, agent_trust=event.trust_level)
-        risk = self._risk_engine.score(event, context, (finding,))
-        return self._policy_engine.decide(risk, (finding,))
+        return decide_with_active_policy(
+            event=event,
+            context=context,
+            findings=(finding,),
+            risk_engine=self._risk_engine,
+            policy_engine=self._policy_engine,
+            policy_detector=self._policy_detector,
+        )
 
     @staticmethod
     def _allow() -> DetectionFinding:
