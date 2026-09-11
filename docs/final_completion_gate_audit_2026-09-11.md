@@ -196,3 +196,11 @@ closed before installation or test execution because the four repository
 secrets were absent or blank. No credential values were logged. Architecture
 completion therefore remains blocked until the R2 secrets are configured and
 the final workflow is green.
+
+GitHub Actions run `34568814431` confirmed that the Python 3.13.15 upgrade
+removed all three Python findings. The container gate then rejected one
+remaining fixable High operating-system finding: `CVE-2026-86145` in Debian
+package `libpcre2-8-0` version `10.42-1`. Debian's security tracker identifies
+`10.42-1+deb12u1` as the fixed Bookworm version, so the Dockerfile now installs
+that exact security revision. This second remediation remains pending remote
+container revalidation; the vulnerability threshold was not weakened.

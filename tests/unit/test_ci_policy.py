@@ -67,6 +67,7 @@ def test_release_container_controls_are_ci_enforced() -> None:
     assert "HEALTHCHECK" in dockerfile
     assert "http://127.0.0.1:8000/v1/health" in dockerfile
     assert "USER aisec" in dockerfile
+    assert "libpcre2-8-0=10.42-1+deb12u1" in dockerfile
 
     assert "AI_SECURITY_ENVIRONMENT: development" in compose
     assert "ai-security.environment: development-only" in compose

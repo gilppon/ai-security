@@ -5,6 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install --yes --no-install-recommends \
+        libpcre2-8-0=10.42-1+deb12u1 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system aisec \
     && useradd --system --gid aisec --home-dir /nonexistent --shell /usr/sbin/nologin aisec
 
