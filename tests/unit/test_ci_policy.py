@@ -60,7 +60,10 @@ def test_release_container_controls_are_ci_enforced() -> None:
     workflow = WORKFLOW.read_text(encoding="utf-8")
 
     first_line = dockerfile.splitlines()[0]
-    assert re.fullmatch(r"FROM python:3\.12-slim@sha256:[0-9a-f]{64}", first_line)
+    assert first_line == (
+        "FROM python:3.13.15-slim-bookworm@sha256:"
+        "ed86c82274b3c69b52fb5820f358f0bd7df0b603332063cb5c6e32bd220c3e6e"
+    )
     assert "HEALTHCHECK" in dockerfile
     assert "http://127.0.0.1:8000/v1/health" in dockerfile
     assert "USER aisec" in dockerfile

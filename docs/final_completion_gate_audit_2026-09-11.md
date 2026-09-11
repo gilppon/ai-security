@@ -159,7 +159,7 @@ jobs pass on the final commit.
 | Finding | Implemented remediation | Current evidence |
 |---|---|---|
 | FCG-B-001 | Added an Ubuntu production-container job covering image build, fail-closed startup, signed-policy startup, health, non-root identity, read-only filesystem, dropped capabilities, and bounded resources. | Contract tests pass; remote execution pending. |
-| FCG-H-001 | Pinned `python:3.12-slim` to the Docker Hub manifest digest and record the built image id. | Dockerfile contract test passes. |
+| FCG-H-001 | Pinned `python:3.13.15-slim-bookworm` to the Docker Hub manifest digest and record the built image id. | Dockerfile contract test passes; the patch-line upgrade removes the fixable Python 3.12 findings reported by the first remote scan. |
 | FCG-H-002 | Marked Compose development-only and added a production deployment/rollback runbook with mandatory verified policy and R2 controls. | Compose validation and runbook contract tests pass. |
 | FCG-H-003 | Added read-only policy-store mode that performs no chmod or sidecar write, rejects append, uses no-follow open where available, and detects identity/content changes while reading. | Read-only store and production runtime integration tests pass. |
 | FCG-M-001 | Added a bounded image health check against `/v1/health`. | Dockerfile contract test passes; runtime evidence pending. |
@@ -175,3 +175,24 @@ Local post-remediation verification:
 - Fault matrix: 6/6 passed, p95/max 1 ms.
 - Source distribution and wheel build: passed.
 - Python dependency audit: no known vulnerabilities found.
+
+## 8. First remote release-gate evidence
+
+GitHub Actions run `34567903094` completed with 19 of 21 jobs passing. The
+production-container job passed image build, fail-closed startup, hardened
+runtime startup, health and runtime-control checks, and SPDX SBOM generation.
+Its vulnerability gate then rejected three fixable High findings in Python
+3.12.14: `CVE-2026-3644`, `CVE-2026-4224`, and `CVE-2026-7210`. The sanitized
+release evidence was retained as artifact `10186701123`.
+
+The base was subsequently upgraded to the official
+`python:3.13.15-slim-bookworm` manifest digest, which is within the project's
+declared Python `>=3.12` compatibility range and is newer than every fixed
+version reported for those findings. This remediation remains pending remote
+container revalidation.
+
+The second failed job was the required live R2 durability gate. It failed
+closed before installation or test execution because the four repository
+secrets were absent or blank. No credential values were logged. Architecture
+completion therefore remains blocked until the R2 secrets are configured and
+the final workflow is green.
