@@ -7,6 +7,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import stat
 import threading
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -90,7 +91,13 @@ def approval_matches_bundle(approval: PolicyApproval, signed: SignedPolicyBundle
 class DurablePolicyBundleStore:
     """Cross-process serialized, monotonic signed policy history."""
 
-    def __init__(self, path: str | Path, *, max_record_bytes: int = 4 * 1024 * 1024) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        max_record_bytes: int = 4 * 1024 * 1024,
+        read_only: bool = False,
+    ) -> None:
         candidate = Path(path)
         if not candidate.is_absolute():
             raise ValueError("policy store path must be absolute")
@@ -104,12 +111,18 @@ class DurablePolicyBundleStore:
         self._path = resolved
         self._lock_path = resolved.with_name(f".{resolved.name}.lock")
         self._max_record_bytes = max_record_bytes
+        self._read_only = read_only
         self._lock = threading.RLock()
+        if self._read_only and not self._path.exists():
+            raise PolicyStoreError("read-only policy store is missing")
         if self._path.exists():
             self._validate_target()
-            self._path.chmod(0o600)
+            if not self._read_only:
+                self._path.chmod(0o600)
 
     def append(self, signed: SignedPolicyBundle, approval: PolicyApproval) -> None:
+        if self._read_only:
+            raise PolicyStoreError("read-only policy store cannot append")
         if not signed.bundle.has_valid_fingerprint():
             raise PolicyStoreError("policy content fingerprint mismatch")
         if not approval_matches_bundle(approval, signed):
@@ -144,34 +157,76 @@ class DurablePolicyBundleStore:
             self._path.chmod(0o600)
 
     def load_latest(self) -> tuple[SignedPolicyBundle, PolicyApproval] | None:
-        with self._lock, _exclusive_file_lock(self._lock_path):
-            records = self._read_records_unlocked()
+        with self._lock:
+            if self._read_only:
+                records = self._read_records_unlocked()
+            else:
+                with _exclusive_file_lock(self._lock_path):
+                    records = self._read_records_unlocked()
         return records[-1] if records else None
 
     def _read_records_unlocked(self) -> list[tuple[SignedPolicyBundle, PolicyApproval]]:
-        if not self._path.exists() or self._path.stat().st_size == 0:
+        if not self._path.exists():
             return []
         self._validate_target()
         records: list[tuple[SignedPolicyBundle, PolicyApproval]] = []
-        with self._path.open("rb") as stream:
-            for raw_line in stream:
-                if len(raw_line) > self._max_record_bytes:
-                    raise PolicyStoreError("policy record exceeds configured bound")
-                try:
-                    payload = json.loads(raw_line)
-                    signed = SignedPolicyBundle.model_validate(payload["signed"])
-                    approval = PolicyApproval.model_validate(payload["approval"])
-                except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
-                    raise PolicyStoreError("invalid policy store record") from exc
-                if not approval_matches_bundle(approval, signed):
-                    raise PolicyStoreError("approval does not match policy bundle")
-                if records:
-                    previous = records[-1][0].bundle
-                    if signed.bundle.policy_id != previous.policy_id:
-                        raise PolicyStoreError("policy id switch is not allowed")
-                    if signed.bundle.version <= previous.version:
-                        raise PolicyVersionRollbackError("policy history contains a rollback")
-                records.append((signed, approval))
+        flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        try:
+            fd = os.open(self._path, flags)
+        except OSError as exc:
+            raise PolicyStoreError("policy store cannot be opened safely") from exc
+        try:
+            before = os.fstat(fd)
+            if not stat.S_ISREG(before.st_mode):
+                raise PolicyStoreError("policy store path must be a regular file")
+            stream = os.fdopen(fd, "rb", closefd=False)
+            try:
+                records = self._parse_records(stream)
+            finally:
+                stream.close()
+            after = os.fstat(fd)
+        finally:
+            os.close(fd)
+        self._validate_target()
+        path_after = self._path.stat()
+        if (
+            before.st_dev,
+            before.st_ino,
+            before.st_size,
+            before.st_mtime_ns,
+        ) != (
+            after.st_dev,
+            after.st_ino,
+            after.st_size,
+            after.st_mtime_ns,
+        ):
+            raise PolicyStoreError("policy store changed while being read")
+        if (after.st_dev, after.st_ino) != (path_after.st_dev, path_after.st_ino):
+            raise PolicyStoreError("policy store identity changed while being read")
+        return records
+
+    def _parse_records(self, stream) -> list[tuple[SignedPolicyBundle, PolicyApproval]]:
+        records: list[tuple[SignedPolicyBundle, PolicyApproval]] = []
+        for raw_line in stream:
+            if len(raw_line) > self._max_record_bytes:
+                raise PolicyStoreError("policy record exceeds configured bound")
+            try:
+                payload = json.loads(raw_line)
+                signed = SignedPolicyBundle.model_validate(payload["signed"])
+                approval = PolicyApproval.model_validate(payload["approval"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as exc:
+                raise PolicyStoreError("invalid policy store record") from exc
+            if not approval_matches_bundle(approval, signed):
+                raise PolicyStoreError("approval does not match policy bundle")
+            if records:
+                previous = records[-1][0].bundle
+                if signed.bundle.policy_id != previous.policy_id:
+                    raise PolicyStoreError("policy id switch is not allowed")
+                if signed.bundle.version <= previous.version:
+                    raise PolicyVersionRollbackError("policy history contains a rollback")
+            records.append((signed, approval))
         return records
 
     def _validate_target(self, *, allow_missing: bool = False) -> None:

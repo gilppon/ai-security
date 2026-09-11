@@ -72,9 +72,6 @@ jobs:
           - phase: phase-10
             label: r2-unit
             tests: tests/unit/test_r2_audit_replica.py
-          - phase: phase-10
-            label: r2-live
-            tests: tests/integration/test_r2_audit_replica_live.py
           - phase: phase-11
             label: resilience
             tests: tests/unit/test_ci_policy.py tests/unit/test_fault_injection.py tests/unit/test_resilience_runner.py tests/unit/test_resilience_catalog.py tests/unit/test_resilience_evidence.py tests/integration/test_fault_pipeline.py tests/integration/test_phase11_fault_matrix.py
@@ -150,6 +147,170 @@ jobs:
             exit 1
           }
           Write-Output "${{ matrix.phase }} regression passed"
+
+  r2-live:
+    name: Required Cloudflare R2 durability gate
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AI_SECURITY_R2_ENDPOINT: ${{ secrets.AI_SECURITY_R2_ENDPOINT }}
+      AI_SECURITY_R2_BUCKET: ${{ secrets.AI_SECURITY_R2_BUCKET }}
+      AI_SECURITY_R2_ACCESS_KEY_ID: ${{ secrets.AI_SECURITY_R2_ACCESS_KEY_ID }}
+      AI_SECURITY_R2_SECRET_ACCESS_KEY: ${{ secrets.AI_SECURITY_R2_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Require R2 trust inputs
+        shell: bash
+        run: |
+          missing=0
+          for variable_name in \
+            AI_SECURITY_R2_ENDPOINT \
+            AI_SECURITY_R2_BUCKET \
+            AI_SECURITY_R2_ACCESS_KEY_ID \
+            AI_SECURITY_R2_SECRET_ACCESS_KEY
+          do
+            if [ -z "${!variable_name}" ]; then
+              echo "::error::Required R2 secret is missing: ${variable_name}"
+              missing=1
+            fi
+          done
+          exit "${missing}"
+      - name: Install project
+        run: python -m pip install --disable-pip-version-check -e ".[test]"
+      - name: Verify immutable R2 replication
+        run: python -m pytest tests/integration/test_r2_audit_replica_live.py -q
+
+  release-container:
+    name: Production container release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install release fixture dependencies
+        run: python -m pip install --disable-pip-version-check -e .
+      - name: Create ephemeral policy trust inputs
+        shell: bash
+        run: |
+          signing_key="$(openssl rand -hex 32)"
+          approval_key="$(openssl rand -hex 32)"
+          echo "::add-mask::${signing_key}"
+          echo "::add-mask::${approval_key}"
+          echo "CI=true" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_ENVIRONMENT=production" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_REQUIRE_VERIFIED_POLICY=true" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_POLICY_SIGNER_ID=release-ci-signer" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_POLICY_SIGNING_KEY_HEX=${signing_key}" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_POLICY_APPROVER_ID=release-ci-approver" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_POLICY_APPROVAL_KEY_HEX=${approval_key}" >> "${GITHUB_ENV}"
+          echo "AI_SECURITY_POLICY_STORE_PATH=${RUNNER_TEMP}/policy.jsonl" >> "${GITHUB_ENV}"
+      - name: Create signed release policy fixture
+        run: python scripts/create_ci_policy_fixture.py
+      - name: Build digest-pinned image
+        shell: bash
+        run: |
+          docker build --pull --tag "ai-security:${GITHUB_SHA}" .
+          mkdir -p .artifacts/release
+          docker image inspect --format '{{.Id}}' "ai-security:${GITHUB_SHA}" \
+            > .artifacts/release/image-id.txt
+          test "$(docker image inspect --format '{{.Config.User}}' "ai-security:${GITHUB_SHA}")" = "aisec"
+      - name: Verify production fails closed without trust inputs
+        shell: bash
+        run: |
+          docker run --detach --name ai-security-fail-closed \
+            --env AI_SECURITY_ENVIRONMENT=production \
+            "ai-security:${GITHUB_SHA}"
+          sleep 5
+          if [ "$(docker inspect --format '{{.State.Running}}' ai-security-fail-closed)" = "true" ]; then
+            echo "::error::Production container started without verified policy inputs"
+            exit 1
+          fi
+          test "$(docker inspect --format '{{.State.ExitCode}}' ai-security-fail-closed)" -ne 0
+      - name: Start hardened production container
+        shell: bash
+        run: |
+          chmod 0444 "${AI_SECURITY_POLICY_STORE_PATH}"
+          docker run --detach --name ai-security-smoke \
+            --read-only \
+            --tmpfs /tmp:size=16m,noexec,nosuid,nodev \
+            --cap-drop ALL \
+            --security-opt no-new-privileges:true \
+            --pids-limit 256 \
+            --memory 512m \
+            --cpus 1.0 \
+            --publish 127.0.0.1::8000 \
+            --mount "type=bind,source=${AI_SECURITY_POLICY_STORE_PATH},target=/policy/policy.jsonl,readonly" \
+            --env AI_SECURITY_ENVIRONMENT=production \
+            --env AI_SECURITY_REQUIRE_VERIFIED_POLICY=true \
+            --env AI_SECURITY_POLICY_SIGNER_ID \
+            --env AI_SECURITY_POLICY_SIGNING_KEY_HEX \
+            --env AI_SECURITY_POLICY_APPROVER_ID \
+            --env AI_SECURITY_POLICY_APPROVAL_KEY_HEX \
+            --env AI_SECURITY_POLICY_STORE_PATH=/policy/policy.jsonl \
+            "ai-security:${GITHUB_SHA}"
+      - name: Verify health and runtime controls
+        shell: bash
+        run: |
+          for attempt in $(seq 1 30); do
+            status="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' ai-security-smoke)"
+            if [ "${status}" = "healthy" ]; then
+              break
+            fi
+            if [ "${status}" = "unhealthy" ]; then
+              exit 1
+            fi
+            sleep 1
+          done
+          test "$(docker inspect --format '{{.State.Health.Status}}' ai-security-smoke)" = "healthy"
+          test "$(docker inspect --format '{{.HostConfig.ReadonlyRootfs}}' ai-security-smoke)" = "true"
+          docker inspect --format '{{json .HostConfig.CapDrop}}' ai-security-smoke | grep -q 'ALL'
+          docker inspect --format '{{json .HostConfig.SecurityOpt}}' ai-security-smoke | grep -q 'no-new-privileges'
+          docker exec ai-security-smoke python -c "import os; raise SystemExit(os.geteuid() == 0)"
+          if docker exec ai-security-smoke python -c "open('/app/write-probe', 'w').close()" >/dev/null 2>&1; then
+            echo "::error::Read-only root filesystem accepted a write"
+            exit 1
+          fi
+          endpoint="$(docker port ai-security-smoke 8000/tcp | head -n 1)"
+          curl --fail --silent --show-error --output /dev/null "http://${endpoint}/v1/health"
+      - name: Generate container SBOM
+        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        with:
+          image: ai-security:${{ github.sha }}
+          format: spdx-json
+          output-file: .artifacts/release/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Reject fixable High and Critical vulnerabilities
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          image: ai-security:${{ github.sha }}
+          fail-build: true
+          severity-cutoff: high
+          only-fixed: true
+          output-format: json
+          output-file: .artifacts/release/grype.json
+      - name: Upload sanitized release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-container-${{ github.run_id }}
+          path: .artifacts/release
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Remove release containers
+        if: always()
+        shell: bash
+        run: |
+          docker rm --force ai-security-fail-closed >/dev/null 2>&1 || true
+          docker rm --force ai-security-smoke >/dev/null 2>&1 || true
 
   fault-matrix:
     name: Complete fault matrix and latency gate

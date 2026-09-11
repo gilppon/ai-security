@@ -90,7 +90,7 @@ def activation_service_from_settings(
     logger = audit_logger or StructuredAuditLogger()
     registry = PolicyBundleRegistry(audit_logger=logger)
     try:
-        store = DurablePolicyBundleStore(settings.policy_store_path)
+        store = DurablePolicyBundleStore(settings.policy_store_path, read_only=True)
     except Exception as exc:
         event = SecurityEventFactory().create(
             event_type="policy.bundle.activate",

@@ -16,6 +16,7 @@ from policy.storage import (
     DurablePolicyBundleStore,
     PolicyApproval,
     PolicyApprovalVerifier,
+    PolicyStoreError,
     PolicyVersionRollbackError,
     create_approval,
 )
@@ -285,6 +286,24 @@ def test_startup_store_failure_is_audited_without_raw_path() -> None:
         "store_state": "unavailable",
     }
     assert raw_path not in sink.records[0]
+
+
+def test_read_only_policy_store_loads_without_mutation_or_sidecar(tmp_path) -> None:
+    path = tmp_path / "policy.jsonl"
+    signed = _signed()
+    writable = DurablePolicyBundleStore(path)
+    writable.append(signed, _approval(signed))
+    lock_path = tmp_path / ".policy.jsonl.lock"
+    lock_path.unlink()
+    path.chmod(0o444)
+
+    read_only = DurablePolicyBundleStore(path, read_only=True)
+    loaded = read_only.load_latest()
+
+    assert loaded is not None and loaded[0] == signed
+    assert not lock_path.exists()
+    with pytest.raises(PolicyStoreError, match="read-only"):
+        read_only.append(signed, _approval(signed))
 
 
 def test_settings_redact_policy_keys_from_repr() -> None:

@@ -4,6 +4,8 @@ services:
       context: .
     environment:
       AI_SECURITY_ENVIRONMENT: development
+    labels:
+      ai-security.environment: development-only
     ports:
       - "127.0.0.1:8000:8000"
     read_only: true
@@ -13,5 +15,8 @@ services:
       - ALL
     security_opt:
       - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: 1.0
+    stop_grace_period: 10s
     init: true
-

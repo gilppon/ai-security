@@ -25,6 +25,11 @@ python -m pytest
 python -m uvicorn app.main:app --reload
 ```
 
+`docker-compose.yml` is development-only. Production promotion must use an
+immutable image digest, verified-policy startup, required durable R2 audit
+replication, and the controls in
+[`docs/production_deployment_runbook.md`](docs/production_deployment_runbook.md).
+
 CLI scans read untrusted content from standard input so raw prompts, documents,
 and model output do not appear in process arguments:
 
