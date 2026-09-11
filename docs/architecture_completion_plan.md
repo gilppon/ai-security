@@ -134,7 +134,7 @@ Status: **COMPLETE** (2026-09-11; GitHub Actions run `34540595732`, 20/20 jobs s
 
 ## Final Completion Gate
 
-Status: **FCG-H-004 LOCALLY REMEDIATED; FINAL CI PENDING** (2026-09-11)
+Status: **COMPLETE — 100% EVIDENCE GATE PASSED** (2026-09-11)
 
 | Gate | Required evidence |
 |---|---|
@@ -146,10 +146,9 @@ Status: **FCG-H-004 LOCALLY REMEDIATED; FINAL CI PENDING** (2026-09-11)
 | Policy | production signed activation 및 rollback/rotation 결과 |
 | Release | package build, container validation, deployment checklist |
 
-Phase 0–12와 원격 Final Completion Gate는 완료됐다. GitHub Actions run
-`34569119907` attempt 2에서 production container, required R2 durability,
-fault matrix, Phase 0–12 regression을 포함한 21/21 jobs가 commit
-`3e68da3b02da03182f9a5a059341d69c570c0735`에서 통과했다. 그러나 이후 로컬
-전체 회귀에서 Windows audit sidecar 최초 초기화 경쟁 조건 `FCG-H-004`가
-한 번 재현됐다. 승인된 수정과 집중 검증은 완료됐으며, 전체 로컬·원격
-재검증이 끝나기 전에는 100% 완료를 선언하지 않는다.
+Phase 0–12와 Final Completion Gate는 완료됐다. 승인된 `FCG-H-004` 수정은
+commit `0eb015b12d3ab41640d9fc7ef0be51d1dc49b305`에 반영됐고, 전체 로컬 회귀와
+GitHub Actions run `34572302476`에서 재검증됐다. 이 원격 실행은 production
+container, required R2 durability, fault matrix, Windows audit multiprocess,
+Phase 0–12 regression을 포함한 21/21 jobs를 통과했다. 따라서 이 문서가
+정의한 범위와 증거 기준에서 아키텍처 완료율은 100%다.

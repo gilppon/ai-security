@@ -12,6 +12,13 @@ offline red-team regression harness.
 SecurityEvent -> Normalize -> Context -> Detect -> Risk -> Policy -> Decision -> Audit
 ```
 
+Architecture completion status: **100% within the documented Phase 0–12 scope**.
+The Final Completion Gate is closed with local verification and GitHub Actions
+run [`34572302476`](https://github.com/gilppon/ai-security/actions/runs/34572302476)
+passing all 21 required jobs. See
+[`docs/final_completion_gate_audit_2026-09-11.md`](docs/final_completion_gate_audit_2026-09-11.md)
+for the evidence and scope boundary.
+
 Process execution is internal only. It accepts an opaque, short-lived,
 single-use Process Firewall capability and invokes an exact executable with an
 argument vector and `shell=False`. Database authorization accepts structured
