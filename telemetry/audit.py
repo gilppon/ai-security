@@ -142,26 +142,32 @@ class AuditDurabilityError(RuntimeError):
 def _exclusive_file_lock(path: Path):
     """Serialize writers across threads and processes using a sidecar lock."""
     fd = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
+    lock_acquired = False
     try:
         if os.name == "nt":
             import msvcrt
 
-            if os.fstat(fd).st_size == 0:
-                os.write(fd, b"\0")
             os.lseek(fd, 0, os.SEEK_SET)
             msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            lock_acquired = True
+            if os.fstat(fd).st_size == 0:
+                os.write(fd, b"\0")
         else:
             import fcntl
 
             fcntl.flock(fd, fcntl.LOCK_EX)
+            lock_acquired = True
         yield
     finally:
-        if os.name == "nt":
-            os.lseek(fd, 0, os.SEEK_SET)
-            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-        else:
-            fcntl.flock(fd, fcntl.LOCK_UN)
-        os.close(fd)
+        try:
+            if lock_acquired:
+                if os.name == "nt":
+                    os.lseek(fd, 0, os.SEEK_SET)
+                    msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 def _harden_owner_only(path: Path) -> None:

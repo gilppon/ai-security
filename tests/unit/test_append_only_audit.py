@@ -5,6 +5,7 @@ import subprocess
 
 import pytest
 
+from telemetry import audit as audit_module
 from telemetry.audit import (
     AppendOnlyFileAuditSink,
     AuditDurabilityError,
@@ -97,6 +98,52 @@ def test_multiple_processes_preserve_one_hash_chain(tmp_path) -> None:
 
     assert [worker.exitcode for worker in workers] == [0, 0, 0]
     assert AppendOnlyFileAuditSink(path).verify() == 30
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows byte-range lock ordering")
+def test_windows_lock_initializes_sentinel_after_acquiring_lock(tmp_path, monkeypatch) -> None:
+    import msvcrt
+
+    events: list[str] = []
+    real_locking = msvcrt.locking
+    real_write = os.write
+
+    def tracked_locking(fd: int, mode: int, size: int) -> None:
+        events.append("lock" if mode == msvcrt.LK_LOCK else "unlock")
+        real_locking(fd, mode, size)
+
+    def tracked_write(fd: int, value: bytes) -> int:
+        events.append("write")
+        return real_write(fd, value)
+
+    monkeypatch.setattr(msvcrt, "locking", tracked_locking)
+    monkeypatch.setattr(audit_module.os, "write", tracked_write)
+
+    with audit_module._exclusive_file_lock(tmp_path / "audit.lock"):
+        events.append("yield")
+
+    assert events == ["lock", "write", "yield", "unlock"]
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows byte-range lock cleanup")
+def test_windows_lock_does_not_unlock_when_acquisition_fails(tmp_path, monkeypatch) -> None:
+    import msvcrt
+
+    modes: list[int] = []
+
+    def failing_locking(fd: int, mode: int, size: int) -> None:
+        modes.append(mode)
+        if mode == msvcrt.LK_LOCK:
+            raise OSError("simulated lock acquisition failure")
+        pytest.fail("unlock attempted without an acquired lock")
+
+    monkeypatch.setattr(msvcrt, "locking", failing_locking)
+
+    with pytest.raises(OSError, match="simulated lock acquisition failure"):
+        with audit_module._exclusive_file_lock(tmp_path / "audit.lock"):
+            pytest.fail("lock context entered after acquisition failure")
+
+    assert modes == [msvcrt.LK_LOCK]
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows DACL verification")

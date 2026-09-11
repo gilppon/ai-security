@@ -134,7 +134,7 @@ Status: **COMPLETE** (2026-09-11; GitHub Actions run `34540595732`, 20/20 jobs s
 
 ## Final Completion Gate
 
-Status: **LOCAL REMEDIATION VERIFIED; GITHUB RELEASE CI EVIDENCE PENDING** (2026-09-11)
+Status: **FCG-H-004 LOCALLY REMEDIATED; FINAL CI PENDING** (2026-09-11)
 
 | Gate | Required evidence |
 |---|---|
@@ -146,6 +146,10 @@ Status: **LOCAL REMEDIATION VERIFIED; GITHUB RELEASE CI EVIDENCE PENDING** (2026
 | Policy | production signed activation 및 rollback/rotation 결과 |
 | Release | package build, container validation, deployment checklist |
 
-현재 Phase 0–12는 완료됐고 Final Completion Gate 수정도 로컬 검증됐다.
-100% 판정은 production container와 required R2 GitHub jobs가 최종 커밋에서
-통과한 뒤에만 선언한다.
+Phase 0–12와 원격 Final Completion Gate는 완료됐다. GitHub Actions run
+`34569119907` attempt 2에서 production container, required R2 durability,
+fault matrix, Phase 0–12 regression을 포함한 21/21 jobs가 commit
+`3e68da3b02da03182f9a5a059341d69c570c0735`에서 통과했다. 그러나 이후 로컬
+전체 회귀에서 Windows audit sidecar 최초 초기화 경쟁 조건 `FCG-H-004`가
+한 번 재현됐다. 승인된 수정과 집중 검증은 완료됐으며, 전체 로컬·원격
+재검증이 끝나기 전에는 100% 완료를 선언하지 않는다.

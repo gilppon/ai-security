@@ -1,8 +1,8 @@
-# Final Completion Gate — Pre-fix Audit
+# Final Completion Gate — Audit
 
 Date: 2026-09-11
 
-Status: **APPROVED REMEDIATION IMPLEMENTED; GITHUB RELEASE CI EVIDENCE PENDING**
+Status: **FCG-H-004 REMEDIATED LOCALLY; FINAL CI PENDING**
 
 Scope: verify the existing architecture completion definition without adding a
 new product phase or feature. This audit covers release packaging, container
@@ -10,7 +10,8 @@ validation, production configuration, rollback readiness, and repeatable CI
 evidence.
 
 No Dockerfile, Compose, CI, application source, or production service was
-modified during this audit.
+modified during the pre-fix evidence-collection stage. Remediation began only
+after the findings below were reported and approved.
 
 ## 1. Authoritative completion requirements
 
@@ -149,22 +150,25 @@ before remediation began.
 
 ## 6. Completion decision
 
-The project remains **Phase 0–12 complete**. All approved Final Completion Gate
-remediations are implemented and locally verified, but the architecture must
-not be called **100% complete** until the new GitHub R2 and production-container
-jobs pass on the final commit.
+The project remains **Phase 0–12 complete**, and GitHub Actions run
+`34569119907` attempt 2 passed the required R2 and production-container jobs
+together with the complete regression matrix. A subsequent local full-suite
+run exposed `FCG-H-004`, so the Final Completion Gate remains open pending an
+approved fix and complete revalidation. The fix is now implemented and focused
+local verification passes; full local and remote revalidation remain required.
 
 ## 7. Approved remediation and local evidence
 
 | Finding | Implemented remediation | Current evidence |
 |---|---|---|
-| FCG-B-001 | Added an Ubuntu production-container job covering image build, fail-closed startup, signed-policy startup, health, non-root identity, read-only filesystem, dropped capabilities, and bounded resources. | Contract tests pass; remote execution pending. |
-| FCG-H-001 | Pinned `python:3.13.15-slim-bookworm` to the Docker Hub manifest digest and record the built image id. | Dockerfile contract test passes; the patch-line upgrade removes the fixable Python 3.12 findings reported by the first remote scan. |
+| FCG-B-001 | Added an Ubuntu production-container job covering image build, fail-closed startup, signed-policy startup, health, non-root identity, read-only filesystem, dropped capabilities, and bounded resources. | Contract tests and GitHub production-container runtime validation pass. |
+| FCG-H-001 | Pinned `python:3.13.15-slim-bookworm` to the Docker Hub manifest digest and record the built image id. | Dockerfile contract and remote image vulnerability gates pass. |
 | FCG-H-002 | Marked Compose development-only and added a production deployment/rollback runbook with mandatory verified policy and R2 controls. | Compose validation and runbook contract tests pass. |
 | FCG-H-003 | Added read-only policy-store mode that performs no chmod or sidecar write, rejects append, uses no-follow open where available, and detects identity/content changes while reading. | Read-only store and production runtime integration tests pass. |
-| FCG-M-001 | Added a bounded image health check against `/v1/health`. | Dockerfile contract test passes; runtime evidence pending. |
+| FCG-H-004 | Windows sidecar lock initialization wrote its sentinel byte before acquiring the byte-range lock. Concurrent first writers could observe an empty file together, and a losing writer could raise `PermissionError`; cleanup then attempted to unlock a range it never acquired. | Approved remediation now acquires the lock before initialization, tracks successful acquisition, unlocks only when acquired, and closes the descriptor in a nested `finally`. Deterministic ordering/cleanup tests, the audit unit module, and 8/8 multiprocess stress reruns pass. Final CI pending. |
+| FCG-M-001 | Added a bounded image health check against `/v1/health`. | Dockerfile contract and live container health checks pass. |
 | FCG-M-002 | Added immutable-digest promotion, rollback, and sanitized evidence procedures. | Runbook contract test passes. |
-| FCG-M-003 | Added SPDX JSON SBOM generation and a fixable High/Critical Grype gate, both pinned to action commit SHAs. | Workflow contract test passes; remote scan pending. |
+| FCG-M-003 | Added SPDX JSON SBOM generation and a fixable High/Critical Grype gate, both pinned to action commit SHAs. | Workflow contract, remote SBOM generation, and zero-unresolved-fixable-High/Critical gate pass. |
 
 Local post-remediation verification:
 
@@ -188,19 +192,38 @@ release evidence was retained as artifact `10186701123`.
 The base was subsequently upgraded to the official
 `python:3.13.15-slim-bookworm` manifest digest, which is within the project's
 declared Python `>=3.12` compatibility range and is newer than every fixed
-version reported for those findings. This remediation remains pending remote
-container revalidation.
+version reported for those findings. At that point, this remediation was
+pending remote container revalidation.
 
 The second failed job was the required live R2 durability gate. It failed
 closed before installation or test execution because the four repository
-secrets were absent or blank. No credential values were logged. Architecture
-completion therefore remains blocked until the R2 secrets are configured and
-the final workflow is green.
+secrets were absent or blank. No credential values were logged. At that point,
+architecture completion remained blocked until the R2 secrets were configured
+and the final workflow was green.
 
 GitHub Actions run `34568814431` confirmed that the Python 3.13.15 upgrade
 removed all three Python findings. The container gate then rejected one
 remaining fixable High operating-system finding: `CVE-2026-86145` in Debian
 package `libpcre2-8-0` version `10.42-1`. Debian's security tracker identifies
 `10.42-1+deb12u1` as the fixed Bookworm version, so the Dockerfile now installs
-that exact security revision. This second remediation remains pending remote
-container revalidation; the vulnerability threshold was not weakened.
+that exact security revision. The final remote run revalidated this remediation
+without weakening the vulnerability threshold.
+
+## 9. Final remote evidence and remaining local finding
+
+GitHub Actions run `34569119907`, attempt 2, completed successfully on commit
+`3e68da3b02da03182f9a5a059341d69c570c0735`. All 21 jobs passed, including:
+
+- the complete Phase 0–12 security regression matrix;
+- the fault and latency matrix;
+- production image build, fail-closed startup, hardened runtime controls, and
+  health verification;
+- SPDX SBOM generation and the fixable High/Critical vulnerability gate; and
+- live Cloudflare R2 write/idempotency verification plus enforced deletion
+  denial beneath the locked `audit/` prefix.
+
+The four required GitHub repository secret names were confirmed present without
+reading or exposing their values. The remote release boundary is green, but the
+locally reproduced `FCG-H-004` audit-lock race required remediation. Its approved
+fix now passes focused local verification. The Final Completion Gate cannot close
+until the complete local and remote suites revalidate the change.
