@@ -22,6 +22,18 @@ ContentFirewallDep = Annotated[ContentFirewall, Depends(get_content_firewall)]
 router = APIRouter(prefix="/security/content", tags=["content-security"])
 
 
+from api.events import broadcast_security_event
+
 @router.post("/scan")
 def scan_content(request: ContentScanRequest, firewall: ContentFirewallDep) -> ContentScanResult:
-    return firewall.scan(request)
+    result = firewall.scan(request)
+    broadcast_security_event({
+        "event_id": result.event_id,
+        "event_type": "content.scan",
+        "decision": result.decision.decision.value,
+        "risk_score": result.decision.risk_score,
+        "reason_codes": [c.value for c in result.decision.reason_codes],
+        "content_type": request.content_type.value,
+        "source_type": request.source_type.value,
+    })
+    return result

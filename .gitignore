@@ -7,3 +7,10 @@ __pycache__/
 dist/
 build/
 *.egg-info/
+
+# Frontend & Node
+node_modules/
+.next/
+dashboard/node_modules/
+dashboard/.next/
+.ruff_cache/

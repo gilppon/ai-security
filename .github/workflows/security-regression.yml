@@ -24,10 +24,10 @@ jobs:
         include:
           - phase: phase-0-1
             label: core
-            tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_security_pipeline.py
+            tests: tests/unit/test_config.py tests/unit/test_event_and_decision_models.py tests/unit/test_risk_engine.py tests/unit/test_rule_engine.py tests/unit/test_audit.py tests/unit/test_policy_engine.py tests/unit/test_policy_reason_propagation.py tests/unit/test_sdk.py tests/integration/test_health.py tests/integration/test_cli.py tests/integration/test_security_pipeline.py tests/integration/test_dashboard_api.py
           - phase: phase-2
             label: prompt
-            tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_import_order.py tests/unit/test_prompt_normalizer.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
+            tests: tests/unit/test_prompt_detectors.py tests/unit/test_prompt_import_order.py tests/unit/test_prompt_normalizer.py tests/unit/test_onnx_hook.py tests/security/test_prompt_firewall.py tests/integration/test_prompt_api.py
           - phase: phase-3
             label: content
             tests: tests/unit/test_content_security.py tests/security/test_content_firewall.py tests/integration/test_content_api.py
@@ -71,13 +71,13 @@ jobs:
             tests: tests/unit/test_append_only_audit.py::test_windows_audit_file_removes_inherited_acl
           - phase: phase-10
             label: r2-unit
-            tests: tests/unit/test_r2_audit_replica.py
+            tests: tests/unit/test_r2_audit_replica.py tests/unit/test_async_telemetry.py
           - phase: phase-11
             label: resilience
             tests: tests/unit/test_ci_policy.py tests/unit/test_fault_injection.py tests/unit/test_resilience_runner.py tests/unit/test_resilience_catalog.py tests/unit/test_resilience_evidence.py tests/integration/test_fault_pipeline.py tests/integration/test_phase11_fault_matrix.py
           - phase: phase-12
             label: policy-lifecycle
-            tests: tests/unit/test_policy_startup.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/security/test_policy_phase12.py tests/integration/test_policy_startup_gate.py tests/integration/test_policy_runtime_activation.py
+            tests: tests/unit/test_policy_startup.py tests/unit/test_policy_and_manifest_cache.py tests/security/test_policy_activation.py tests/security/test_policy_lifecycle.py tests/security/test_policy_signing.py tests/security/test_policy_phase12.py tests/integration/test_policy_startup_gate.py tests/integration/test_policy_runtime_activation.py
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6

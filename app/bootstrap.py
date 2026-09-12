@@ -34,6 +34,22 @@ def create_app(
         lifespan=lifespan,
     )
 
+    from fastapi.middleware.cors import CORSMiddleware
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    from pathlib import Path
+    dashboard_out = Path("dashboard/out")
+    if dashboard_out.exists() and dashboard_out.is_dir():
+        from fastapi.staticfiles import StaticFiles
+        application.mount("/dashboard", StaticFiles(directory=str(dashboard_out), html=True), name="dashboard")
+
     application.include_router(router)
     application.state.policy_detector = ActivePolicyDetector(policy_registry)
     return application
+

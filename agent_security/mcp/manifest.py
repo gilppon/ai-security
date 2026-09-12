@@ -37,6 +37,7 @@ class MCPManifest(BaseModel):
 class MCPManifestRegistry:
     def __init__(self, manifests: Iterable[MCPManifest] = ()) -> None:
         self._manifests: dict[str, MCPManifest] = {}
+        self._tool_cache: dict[tuple[str, str], MCPToolManifest | None] = {}
         for manifest in manifests:
             self.register(manifest)
 
@@ -44,6 +45,24 @@ class MCPManifestRegistry:
         if manifest.server_id in self._manifests:
             raise ValueError(f"MCP server already registered: {manifest.server_id}")
         self._manifests[manifest.server_id] = manifest
+        # Populate / invalidate tool lookup cache for this server
+        for tool in manifest.tools:
+            self._tool_cache[(manifest.server_id, tool.name)] = tool
 
     def get(self, server_id: str) -> MCPManifest | None:
         return self._manifests.get(server_id)
+
+    def get_tool(self, server_id: str, tool_name: str) -> MCPToolManifest | None:
+        cache_key = (server_id, tool_name)
+        if cache_key in self._tool_cache:
+            return self._tool_cache[cache_key]
+        manifest = self.get(server_id)
+        if manifest is None:
+            self._tool_cache[cache_key] = None
+            return None
+        for tool in manifest.tools:
+            if tool.name == tool_name:
+                self._tool_cache[cache_key] = tool
+                return tool
+        self._tool_cache[cache_key] = None
+        return None

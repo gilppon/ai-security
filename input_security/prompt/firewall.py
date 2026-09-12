@@ -39,6 +39,7 @@ class PromptFirewall:
         encoding_detector: PromptTextDetectorContract | None = None,
         obfuscation_detector: PromptObfuscationDetectorContract | None = None,
         jailbreak_detector: PromptTextDetectorContract | None = None,
+        onnx_detector: PromptTextDetectorContract | None = None,
         policy_detector: DetectionEngineContract | None = None,
         risk_engine: RiskEngine | None = None,
         policy_engine: PolicyEngine | None = None,
@@ -56,6 +57,7 @@ class PromptFirewall:
 
             jailbreak_detector = JailbreakDetector()
         self._jailbreak_detector = jailbreak_detector
+        self._onnx_detector = onnx_detector
         self._policy_detector = policy_detector
         self._risk_engine = risk_engine or RiskEngine()
         self._policy_engine = policy_engine or PolicyEngine()
@@ -152,6 +154,8 @@ class PromptFirewall:
         findings.extend(self._encoding_detector.detect(raw_prompt, normalized_text))
         findings.extend(self._obfuscation_detector.detect(raw_prompt, normalization))
         findings.extend(self._jailbreak_detector.detect(raw_prompt, normalized_text))
+        if self._onnx_detector is not None:
+            findings.extend(self._onnx_detector.detect(raw_prompt, normalized_text))
         return tuple(sorted(findings, key=lambda item: (item.code, item.evidence_fingerprint)))
 
     @staticmethod

@@ -1,0 +1,28 @@
+# AI Security Control Plane — 2026 Production robots.txt
+# Optimized for Googlebot and Generative Engine Optimization (GEO) bots
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /_next/
+
+# Explicitly allow AI Engine search & citation crawlers (GEO)
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+Sitemap: https://ai-security.dev/sitemap.xml

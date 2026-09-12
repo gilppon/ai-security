@@ -42,12 +42,34 @@ class PolicySignatureVerifier:
         self._keys = dict(keys)
         self._revoked_signer_ids = frozenset(revoked_signer_ids)
         self._lock = threading.RLock()
+        self._cache: dict[tuple[str, str, str], bool] = {}
+        self._cache_max_size: int = 1024
 
     def verify(self, signed: SignedPolicyBundle) -> bool:
+        cache_key = (
+            signed.signer_id,
+            signed.bundle.content_fingerprint,
+            signed.signature,
+        )
         with self._lock:
+            if cache_key in self._cache:
+                return self._cache[cache_key]
             key = self._keys.get(signed.signer_id)
             revoked = signed.signer_id in self._revoked_signer_ids
+
         if key is None or revoked or not signed.bundle.has_valid_fingerprint():
-            return False
-        expected = hmac.new(key, _signing_payload(signed.bundle), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(expected, signed.signature)
+            result = False
+        else:
+            expected = hmac.new(key, _signing_payload(signed.bundle), hashlib.sha256).hexdigest()
+            result = hmac.compare_digest(expected, signed.signature)
+
+        with self._lock:
+            if len(self._cache) >= self._cache_max_size:
+                # Evict oldest entry
+                self._cache.pop(next(iter(self._cache)))
+            self._cache[cache_key] = result
+        return result
+
+    def clear_cache(self) -> None:
+        with self._lock:
+            self._cache.clear()
