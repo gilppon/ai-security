@@ -1,5 +1,7 @@
 # 🛡️ AI Security Control Plane — 초보자도 한눈에 이해하는 완벽 가이드북
 
+[ 🇰🇷 한국어 ](AI_SECURITY_BEGINNER_GUIDE.md) | [ 🇺🇸 English ](AI_SECURITY_BEGINNER_GUIDE_EN.md) | [ 🇯🇵 日本語 ](AI_SECURITY_BEGINNER_GUIDE_JA.md)
+
 > **"AI에게 절대 최종 보안 결정권을 주지 않는다!"**  
 > 본 프로그램은 챗봇, AI 에이전트, RAG 시스템 등 인공지능이 동작할 때 발생할 수 있는 **해킹, 탈옥(Jailbreak), 개인정보 및 비밀번호 유출, 시스템 파괴 명령을 0.0001초(0.145ms) 만에 차단하는 독자적 사이버 보안 통제 평면(Control Plane)**입니다.
 
